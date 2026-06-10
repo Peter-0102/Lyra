@@ -23,6 +23,9 @@ dependencies:
   dio: ^5.5.0+1
   path_provider: ^2.1.3
 
+  # Disk Space
+  disk_usage: ^1.0.0
+
   # Platform & Hardware Integration
   permission_handler: ^11.3.1
 

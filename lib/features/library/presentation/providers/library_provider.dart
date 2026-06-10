@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../audio_player/domain/entities/song.dart';
 import '../../../audio_player/domain/repositories/audio_repository.dart';
 import '../../../audio_player/data/repositories/audio_repository_impl.dart';
+import '../../../download/presentation/providers/download_provider.dart';
 
 class LibraryState {
   final List<Song> songs;
@@ -86,5 +87,15 @@ final audioRepositoryProvider = Provider<AudioRepository>((ref) {
 
 final libraryProvider = StateNotifierProvider<LibraryNotifier, LibraryState>((ref) {
   final audioRepository = ref.watch(audioRepositoryProvider);
-  return LibraryNotifier(audioRepository);
+  final notifier = LibraryNotifier(audioRepository);
+
+  ref.listen(downloadProvider, (previous, next) {
+    final prevCompleted = previous?.completedDownloads.length ?? 0;
+    final nextCompleted = next.completedDownloads.length;
+    if (nextCompleted > prevCompleted) {
+      notifier.loadSongs();
+    }
+  });
+
+  return notifier;
 });

@@ -31,6 +31,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final trimmed = query.trim();
     if (trimmed.isEmpty || trimmed == _lastQuery) return;
 
+    print('[DOWNLOAD] UI: Search initiated => "$trimmed"');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -40,6 +41,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     try {
       final yt = sl<YoutubeExplode>();
       final results = await yt.search.search(trimmed);
+      print('[DOWNLOAD] UI: Search returned ${results.length} results');
       if (mounted) {
         setState(() {
           _results = results;
@@ -47,6 +49,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         });
       }
     } catch (e) {
+      print('[DOWNLOAD] UI: Search FAILED => $e');
       if (mounted) {
         setState(() {
           _error = 'Search failed: $e';
@@ -243,7 +246,7 @@ class _YouTubeResultTile extends ConsumerWidget {
           // Play from YouTube source (for now, show info)
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Download to play: ${video.title}'),
+              content: Text('Download to play: ${video.title}', style: TextStyle(color: AppColors.onPrimary), ),
               backgroundColor: AppColors.cardDark,
               behavior: SnackBarBehavior.floating,
             ),
@@ -374,13 +377,34 @@ class _DownloadButton extends ConsumerWidget {
     final downloadState = ref.watch(downloadProvider);
     final videoId = video.id.toString();
     final isDownloading = downloadState.activeDownloads.containsKey(videoId);
+    final activeItem = downloadState.activeDownloads[videoId];
     final isCompleted = downloadState.isBusyOrDone(videoId);
 
-    if (isCompleted) {
+    final failedItem = downloadState.failedDownloads
+        .where((d) => d.videoId == videoId)
+        .toList();
+
+    if (isCompleted && !isDownloading) {
       return const Icon(Icons.check_circle, color: AppColors.primary, size: 28);
     }
 
-    if (isDownloading) {
+    if (isDownloading && activeItem != null) {
+      if (activeItem.status == DownloadState.error ||
+          activeItem.status == DownloadState.cancelled) {
+        return IconButton(
+          icon: const Icon(Icons.error_outline, color: AppColors.error, size: 28),
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(activeItem.errorMessage ?? 'Download failed'),
+                backgroundColor: AppColors.cardDark,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        );
+      }
+
       return const SizedBox(
         width: 28,
         height: 28,
@@ -391,10 +415,21 @@ class _DownloadButton extends ConsumerWidget {
       );
     }
 
+    if (failedItem.isNotEmpty) {
+      return IconButton(
+        icon: const Icon(Icons.refresh, color: AppColors.error, size: 26),
+        onPressed: () {
+          ref.read(downloadProvider.notifier).retryDownload(videoId);
+        },
+      );
+    }
+
     return IconButton(
       icon: const Icon(Icons.download_rounded,
           color: AppColors.textSecondaryDark, size: 26),
       onPressed: () {
+        final videoId = video.id.toString();
+        print('[DOWNLOAD] UI: Download button tapped => videoId="$videoId", title="${video.title}", author="${video.author}"');
         ref.read(downloadProvider.notifier).startDownload(
               videoId,
               video.title,

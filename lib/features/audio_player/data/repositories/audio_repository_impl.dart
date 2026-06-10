@@ -27,11 +27,34 @@ class AudioRepositoryImpl implements AudioRepository {
         if (file is File) {
           final fileName = file.uri.pathSegments.last;
           final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+          final parts = nameWithoutExt.split('_');
+
+          String title;
+          String artist;
+
+          if (parts.length >= 3) {
+            final lastPart = parts.last;
+            final isTimestamp = int.tryParse(lastPart) != null;
+
+            if (isTimestamp && parts.length >= 3) {
+              artist = _formatFileName(parts.sublist(0, parts.length - 2).join('_'));
+              title = _formatFileName(parts[parts.length - 2]);
+            } else {
+              artist = _formatFileName(parts.first);
+              title = _formatFileName(parts.sublist(1).join('_'));
+            }
+          } else if (parts.length == 2) {
+            artist = _formatFileName(parts[0]);
+            title = _formatFileName(parts[1]);
+          } else {
+            artist = 'Unknown Artist';
+            title = _formatFileName(nameWithoutExt);
+          }
 
           songs.add(Song(
             id: fileName.hashCode.toString(),
-            title: _formatFileName(nameWithoutExt),
-            artist: 'Unknown Artist',
+            title: title,
+            artist: artist,
             filePath: file.path,
             duration: Duration.zero,
           ));

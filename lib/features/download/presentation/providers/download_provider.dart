@@ -115,12 +115,20 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
   }
 
   void _initProgressListener() {
+    print('[DOWNLOAD] DownloadNotifier: Initializing progress listener');
     _progressSub = _downloadService.progressStream.listen((downloadProgress) {
       final videoId = _currentTrackingVideoId;
-      if (videoId == null) return;
+      print('[DOWNLOAD] DownloadNotifier: Progress event => state=${downloadProgress.state}, progress=${downloadProgress.progress}, videoId=$videoId');
+      if (videoId == null) {
+        print('[DOWNLOAD] DownloadNotifier: No active tracking videoId, ignoring progress');
+        return;
+      }
 
       final current = state.activeDownloads[videoId];
-      if (current == null) return;
+      if (current == null) {
+        print('[DOWNLOAD] DownloadNotifier: No active download item for videoId=$videoId, ignoring');
+        return;
+      }
 
       final updated = current.copyWith(
         status: downloadProgress.state,
@@ -137,8 +145,13 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
   }
 
   Future<void> startDownload(String videoId, String title, String artist) async {
+    print('[DOWNLOAD] DownloadNotifier: startDownload called => videoId="$videoId", title="$title", artist="$artist"');
+
     // Prevent duplicate downloads
-    if (state.isBusyOrDone(videoId)) return;
+    if (state.isBusyOrDone(videoId)) {
+      print('[DOWNLOAD] DownloadNotifier: Duplicate download blocked for videoId="$videoId" (isBusyOrDone=true)');
+      return;
+    }
 
     _currentTrackingVideoId = videoId;
 
@@ -153,13 +166,16 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
     final newMap = Map<String, DownloadItem>.from(state.activeDownloads);
     newMap[videoId] = item;
     state = state.copyWith(activeDownloads: newMap);
+    print('[DOWNLOAD] DownloadNotifier: Added to activeDownloads map');
 
     try {
+      print('[DOWNLOAD] DownloadNotifier: Calling downloadService.downloadYoutubeSong...');
       final filePath = await _downloadService.downloadYoutubeSong(
         videoId,
         title: title,
         artist: artist,
       );
+      print('[DOWNLOAD] DownloadNotifier: Download succeeded! filePath="$filePath"');
 
       final completedItem = item.copyWith(
         status: DownloadState.completed,
@@ -174,7 +190,9 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
         activeDownloads: updatedMap,
         completedDownloads: [...state.completedDownloads, completedItem],
       );
+      print('[DOWNLOAD] DownloadNotifier: Moved to completedDownloads');
     } on Failure catch (e) {
+      print('[DOWNLOAD] DownloadNotifier: Download FAILED with Failure => ${e.runtimeType}: ${e.message}');
       final failedItem = item.copyWith(
         status: DownloadState.error,
         errorMessage: e.message,
@@ -187,14 +205,17 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
         activeDownloads: updatedMap,
         failedDownloads: [...state.failedDownloads, failedItem],
       );
+      print('[DOWNLOAD] DownloadNotifier: Moved to failedDownloads');
     } finally {
       if (_currentTrackingVideoId == videoId) {
         _currentTrackingVideoId = null;
+        print('[DOWNLOAD] DownloadNotifier: Cleared _currentTrackingVideoId');
       }
     }
   }
 
   Future<void> cancelAllDownloads() async {
+    print('[DOWNLOAD] DownloadNotifier: cancelAllDownloads called');
     await _downloadService.cancelDownload();
 
     final cancelledItems = state.activeDownloads.values
@@ -207,9 +228,11 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
     );
 
     _currentTrackingVideoId = null;
+    print('[DOWNLOAD] DownloadNotifier: All downloads cancelled');
   }
 
   Future<void> retryDownload(String videoId) async {
+    print('[DOWNLOAD] DownloadNotifier: retryDownload called for videoId="$videoId"');
     final failed = state.failedDownloads.firstWhere(
       (d) => d.videoId == videoId,
       orElse: () => throw StateError('No failed download found for $videoId'),
