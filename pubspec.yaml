@@ -1,0 +1,39 @@
+name: mispoti
+description: "A production-ready, native mobile music streaming and playback application."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Dependency Injection & State Management
+  get_it: ^8.0.3
+  flutter_riverpod: ^2.5.1
+
+  # Audio Playback
+  just_audio: ^0.9.41
+  just_audio_background: ^0.0.1-beta.15
+
+  # Network & YouTube Extraction
+  youtube_explode_dart: ^2.3.0
+  dio: ^5.5.0+1
+  path_provider: ^2.1.3
+
+  # Platform & Hardware Integration
+  permission_handler: ^11.3.1
+
+  # UI / UX Utilities
+  shimmer: ^3.0.0
+  flutter_svg: ^2.0.10+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
