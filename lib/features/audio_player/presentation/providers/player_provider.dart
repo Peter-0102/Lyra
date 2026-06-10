@@ -14,6 +14,7 @@ class MusicPlayerState {
   final Duration? duration;
   final Duration bufferedPosition;
   final Song? currentSong;
+  final List<Song> songs;
   final double volume;
   final double speed;
   final LoopMode loopMode;
@@ -30,6 +31,7 @@ class MusicPlayerState {
     this.duration,
     this.bufferedPosition = Duration.zero,
     this.currentSong,
+    this.songs = const [],
     this.volume = 1.0,
     this.speed = 1.0,
     this.loopMode = LoopMode.off,
@@ -47,6 +49,7 @@ class MusicPlayerState {
     Duration? duration,
     Duration? bufferedPosition,
     Song? currentSong,
+    List<Song>? songs,
     double? volume,
     double? speed,
     LoopMode? loopMode,
@@ -63,6 +66,7 @@ class MusicPlayerState {
       duration: duration ?? this.duration,
       bufferedPosition: bufferedPosition ?? this.bufferedPosition,
       currentSong: currentSong ?? this.currentSong,
+      songs: songs ?? this.songs,
       volume: volume ?? this.volume,
       speed: speed ?? this.speed,
       loopMode: loopMode ?? this.loopMode,
@@ -132,9 +136,19 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
 
       _service.sequenceStateStream.listen((seqState) {
         if (seqState == null) return;
+        final newIndex = seqState.currentIndex;
+        final newQueueLength = seqState.sequence.length;
+
+        // Sync currentSong from the queue when the index changes
+        Song? updatedSong = state.currentSong;
+        if (newIndex >= 0 && newIndex < state.songs.length) {
+          updatedSong = state.songs[newIndex];
+        }
+
         state = state.copyWith(
-          currentIndex: seqState.currentIndex,
-          queueLength: seqState.sequence.length,
+          currentIndex: newIndex,
+          queueLength: newQueueLength,
+          currentSong: updatedSong,
         );
       }),
     ]);
@@ -144,22 +158,10 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   // Single-track playback
   // ---------------------------------------------------------------------------
 
-  Future<void> playSong(Song song) async {
-    state = state.copyWith(
-      currentSong: song,
-      isCompleted: false,
-      position: Duration.zero,
-      errorMessage: null,
-    );
-
-    await _service.playLocalFile(
-      song.filePath,
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: 'Mispoti',
-      artUri: song.thumbnailUrl,
-    );
+  Future<void> playSong(Song song, {List<Song>? allSongs}) async {
+    final songs = allSongs ?? [song];
+    final startIndex = songs.indexWhere((s) => s.id == song.id);
+    await playQueue(songs, startIndex: startIndex >= 0 ? startIndex : 0);
   }
 
   // ---------------------------------------------------------------------------
@@ -191,6 +193,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
 
     state = state.copyWith(
       currentSong: songs[startIndex],
+      songs: songs,
       isCompleted: false,
       position: Duration.zero,
       queueLength: songs.length,

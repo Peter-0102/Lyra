@@ -5,13 +5,30 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../providers/player_provider.dart';
 
-class PlayerScreen extends ConsumerWidget {
+class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
+}
+
+class _PlayerScreenState extends ConsumerState<PlayerScreen> {
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(playerProvider);
     final notifier = ref.read(playerProvider.notifier);
+
+    ref.listen<MusicPlayerState>(playerProvider, (prev, next) {
+      if (next.errorMessage != null && next.errorMessage != prev?.errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage!),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,

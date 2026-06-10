@@ -274,6 +274,7 @@ class _LibraryTab extends ConsumerWidget {
                             child: SongListTile(
                               song: song,
                               index: index,
+                              allSongs: libraryState.filteredSongs,
                             ),
                           );
                         },

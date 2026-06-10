@@ -10,6 +10,7 @@ class SongListTile extends ConsumerWidget {
   final bool isPlaying;
   final VoidCallback? onTap;
   final Widget? trailing;
+  final List<Song>? allSongs;
 
   const SongListTile({
     super.key,
@@ -18,6 +19,7 @@ class SongListTile extends ConsumerWidget {
     this.isPlaying = false,
     this.onTap,
     this.trailing,
+    this.allSongs,
   });
 
   @override
@@ -30,7 +32,10 @@ class SongListTile extends ConsumerWidget {
       child: InkWell(
         onTap: onTap ??
             () {
-              ref.read(playerProvider.notifier).playSong(song);
+              ref.read(playerProvider.notifier).playSong(
+                    song,
+                    allSongs: allSongs,
+                  );
             },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
