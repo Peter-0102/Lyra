@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../providers/player_provider.dart';
+import 'queue_screen.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -36,7 +37,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Column(
           children: [
             // Top bar
-            _TopBar(title: 'Mispoti'),
+            _TopBar(title: 'Mispoti', queueLength: state.songs.length),
             // Album art
             Expanded(
               child: Center(
@@ -95,7 +96,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
 class _TopBar extends StatelessWidget {
   final String title;
-  const _TopBar({required this.title});
+  final int queueLength;
+  const _TopBar({required this.title, required this.queueLength});
 
   @override
   Widget build(BuildContext context) {
@@ -135,9 +137,15 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert_rounded,
+            icon: const Icon(Icons.queue_music_rounded,
                 color: AppColors.textSecondaryDark, size: 22),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const QueueScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),

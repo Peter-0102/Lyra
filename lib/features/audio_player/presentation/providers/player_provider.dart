@@ -363,6 +363,134 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   }
 
   // ---------------------------------------------------------------------------
+  // Queue management
+  // ---------------------------------------------------------------------------
+
+  /// Adds a song to the end of the current queue.
+  Future<void> addToQueue(Song song) async {
+    if (state.songs.isEmpty) {
+      await playSong(song);
+      return;
+    }
+
+    try {
+      final source = AudioSource.file(
+        song.filePath,
+        tag: MediaItem(
+          id: song.id,
+          album: 'Mispoti',
+          title: song.title,
+          artist: song.artist,
+          artUri: song.thumbnailUrl != null
+              ? Uri.parse(song.thumbnailUrl!)
+              : null,
+        ),
+      );
+
+      final insertIndex = state.songs.length;
+      await _service.insertIntoQueue(insertIndex, source);
+
+      final updatedSongs = List<Song>.from(state.songs)..add(song);
+      state = state.copyWith(
+        songs: updatedSongs,
+        queueLength: updatedSongs.length,
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: e.toString());
+    }
+  }
+
+  /// Inserts a song right after the currently playing track.
+  Future<void> playNext(Song song) async {
+    if (state.songs.isEmpty) {
+      await playSong(song);
+      return;
+    }
+
+    try {
+      final source = AudioSource.file(
+        song.filePath,
+        tag: MediaItem(
+          id: song.id,
+          album: 'Mispoti',
+          title: song.title,
+          artist: song.artist,
+          artUri: song.thumbnailUrl != null
+              ? Uri.parse(song.thumbnailUrl!)
+              : null,
+        ),
+      );
+
+      final insertIndex = (state.currentIndex ?? 0) + 1;
+      await _service.insertIntoQueue(insertIndex, source);
+
+      final updatedSongs = List<Song>.from(state.songs);
+      updatedSongs.insert(insertIndex, song);
+      state = state.copyWith(
+        songs: updatedSongs,
+        queueLength: updatedSongs.length,
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: e.toString());
+    }
+  }
+
+  /// Removes a song at [index] from the current queue.
+  Future<void> removeFromQueue(int index) async {
+    try {
+      // Don't remove the currently playing song
+      if (index == state.currentIndex) return;
+
+      // Update state FIRST so Dismissible disappears immediately
+      final updatedSongs = List<Song>.from(state.songs)..removeAt(index);
+
+      int newCurrentIndex = state.currentIndex ?? 0;
+      if (index < newCurrentIndex) {
+        newCurrentIndex--;
+      }
+
+      state = state.copyWith(
+        songs: updatedSongs,
+        queueLength: updatedSongs.length,
+        currentIndex: newCurrentIndex,
+      );
+
+      // Then sync with the audio service
+      await _service.removeFromQueue(index);
+    } catch (e) {
+      state = state.copyWith(errorMessage: e.toString());
+    }
+  }
+
+  /// Moves a song from [oldIndex] to [newIndex] in the queue.
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    try {
+      await _service.moveInQueue(oldIndex, newIndex);
+
+      final updatedSongs = List<Song>.from(state.songs);
+      final song = updatedSongs.removeAt(oldIndex);
+      updatedSongs.insert(newIndex, song);
+
+      // Adjust currentIndex to follow the currently playing song
+      int newCurrentIndex = state.currentIndex ?? 0;
+      if (oldIndex == newCurrentIndex) {
+        newCurrentIndex = newIndex;
+      } else if (oldIndex < newCurrentIndex && newIndex >= newCurrentIndex) {
+        newCurrentIndex--;
+      } else if (oldIndex > newCurrentIndex && newIndex <= newCurrentIndex) {
+        newCurrentIndex++;
+      }
+
+      state = state.copyWith(
+        songs: updatedSongs,
+        currentIndex: newCurrentIndex,
+      );
+    } catch (e) {
+      state = state.copyWith(errorMessage: e.toString());
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
 

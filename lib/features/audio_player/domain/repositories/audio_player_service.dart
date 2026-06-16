@@ -127,6 +127,15 @@ abstract class AudioPlayerService {
   /// Jumps to a specific index in the current sequence.
   Future<void> skipToQueueItem(int index);
 
+  /// Inserts an [AudioSource] at [index] in the current queue.
+  Future<void> insertIntoQueue(int index, AudioSource source);
+
+  /// Removes the track at [index] from the current queue.
+  Future<void> removeFromQueue(int index);
+
+  /// Moves a track from [oldIndex] to [newIndex] in the current queue.
+  Future<void> moveInQueue(int oldIndex, int newIndex);
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------

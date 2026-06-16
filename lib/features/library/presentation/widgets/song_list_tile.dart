@@ -37,6 +37,7 @@ class SongListTile extends ConsumerWidget {
                     allSongs: allSongs,
                   );
             },
+        onLongPress: () => _showSongOptions(context, ref),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
@@ -143,5 +144,139 @@ class SongListTile extends ConsumerWidget {
       return '${d.inHours}:$m:$s';
     }
     return '$m:$s';
+  }
+
+  void _showSongOptions(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(playerProvider.notifier);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardDark,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.textSecondaryDark.withAlpha(102),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Song info header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary.withAlpha(77),
+                          AppColors.primaryVariant.withAlpha(51),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.music_note_rounded,
+                      color: AppColors.primary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          style: const TextStyle(
+                            color: AppColors.textPrimaryDark,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.artist,
+                          style: const TextStyle(
+                            color: AppColors.textSecondaryDark,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: AppColors.surfaceDark, height: 1),
+            // Options
+            ListTile(
+              leading: const Icon(Icons.play_arrow_rounded,
+                  color: AppColors.textPrimaryDark),
+              title: const Text('Play',
+                  style: TextStyle(color: AppColors.textPrimaryDark)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                notifier.playSong(song, allSongs: allSongs);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.queue_rounded,
+                  color: AppColors.textPrimaryDark),
+              title: const Text('Add to queue',
+                  style: TextStyle(color: AppColors.textPrimaryDark)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                notifier.addToQueue(song);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Added to queue: ${song.title}'),
+                    backgroundColor: AppColors.cardDark,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.skip_next_rounded,
+                  color: AppColors.textPrimaryDark),
+              title: const Text('Play next',
+                  style: TextStyle(color: AppColors.textPrimaryDark)),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                notifier.playNext(song);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Playing next: ${song.title}'),
+                    backgroundColor: AppColors.cardDark,
+                    behavior: SnackBarBehavior.floating,
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }

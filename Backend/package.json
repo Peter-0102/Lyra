@@ -1,0 +1,37 @@
+{
+  "name": "mispoti-audio-backend",
+  "version": "1.0.0",
+  "description": "Backend for extracting and serving YouTube audio to Mispoti Flutter app",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && cp -r src/db/migrations dist/db/",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "worker": "node dist/queue/audioWorker.js",
+    "worker:dev": "tsx watch src/queue/audioWorker.ts",
+    "lint": "eslint src/",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/rate-limit": "^10.2.1",
+    "better-sqlite3": "^11.7.0",
+    "bullmq": "^5.40.0",
+    "fastify": "^5.2.1",
+    "ioredis": "^5.5.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.17.24",
+    "@types/node-cron": "^3.0.11",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

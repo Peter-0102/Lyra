@@ -284,6 +284,42 @@ class AudioPlayerServiceImpl implements AudioPlayerService {
     }
   }
 
+  @override
+  Future<void> insertIntoQueue(int index, AudioSource source) async {
+    try {
+      final audioSource = _player.audioSource;
+      if (audioSource is ConcatenatingAudioSource) {
+        await audioSource.insert(index, source);
+      }
+    } catch (e) {
+      throw AudioPlaybackFailure('Insert into queue failed: $e');
+    }
+  }
+
+  @override
+  Future<void> removeFromQueue(int index) async {
+    try {
+      final audioSource = _player.audioSource;
+      if (audioSource is ConcatenatingAudioSource) {
+        await audioSource.removeAt(index);
+      }
+    } catch (e) {
+      throw AudioPlaybackFailure('Remove from queue failed: $e');
+    }
+  }
+
+  @override
+  Future<void> moveInQueue(int oldIndex, int newIndex) async {
+    try {
+      final audioSource = _player.audioSource;
+      if (audioSource is ConcatenatingAudioSource) {
+        await audioSource.move(oldIndex, newIndex);
+      }
+    } catch (e) {
+      throw AudioPlaybackFailure('Move in queue failed: $e');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------

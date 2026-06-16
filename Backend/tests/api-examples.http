@@ -1,0 +1,90 @@
+### ==========================================================
+### Mispoti Audio Backend — API Examples
+### ==========================================================
+### Usar con VS Code REST Client o IntelliJ HTTP Client
+### Configure BASE_URL según su entorno
+
+@BASE_URL = http://localhost:3000
+
+### ----------------------------------------------------------
+### 1. Health Check
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/health
+
+### ----------------------------------------------------------
+### 2. Request audio extraction (nuevo job)
+### ----------------------------------------------------------
+POST {{BASE_URL}}/api/audio/request
+Content-Type: application/json
+
+{
+  "videoId": "lcoqOPaBe9M"
+}
+
+### ----------------------------------------------------------
+### 3. Request audio extraction (video privado — debe fallar)
+### ----------------------------------------------------------
+POST {{BASE_URL}}/api/audio/request
+Content-Type: application/json
+
+{
+  "videoId": "dQw4w9WgXcQ"
+}
+
+### ----------------------------------------------------------
+### 4. Request con videoId inválido — 400
+### ----------------------------------------------------------
+POST {{BASE_URL}}/api/audio/request
+Content-Type: application/json
+
+{
+  "videoId": "corto"
+}
+
+### ----------------------------------------------------------
+### 5. Request con videoId vacío — 400
+### ----------------------------------------------------------
+POST {{BASE_URL}}/api/audio/request
+Content-Type: application/json
+
+{
+  "videoId": ""
+}
+
+### ----------------------------------------------------------
+### 6. Ver estado de un job (reemplazar <JOB_ID>)
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/audio/status/<JOB_ID>
+
+### ----------------------------------------------------------
+### 7. Ver estado de un job inexistente — 404
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/audio/status/00000000-0000-0000-0000-000000000000
+
+### ----------------------------------------------------------
+### 8. Descargar audio (reemplazar <VIDEO_ID> con uno extraído)
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/audio/file/<VIDEO_ID>
+Accept: audio/mp4
+
+### ----------------------------------------------------------
+### 9. Descargar audio con Range (primer MB) — 206 Partial Content
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/audio/file/<VIDEO_ID>
+Range: bytes=0-1048575
+
+### ----------------------------------------------------------
+### 10. Descargar audio inexistente — 404
+### ----------------------------------------------------------
+GET {{BASE_URL}}/api/audio/file/aaaaaaaaaaa
+
+### ----------------------------------------------------------
+### 11. Rate limit test (11 requests rápidos) — el 11° debe dar 429
+### ----------------------------------------------------------
+# Descomentar y ejecutar 11 veces seguidas rápidamente
+# POST {{BASE_URL}}/api/audio/request
+# Content-Type: application/json
+#
+# {
+#   "videoId": "lcoqOPaBe9M"
+# }
