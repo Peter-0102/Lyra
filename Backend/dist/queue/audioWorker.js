@@ -10,7 +10,7 @@ import { config } from '../config.js';
 async function processJob(job) {
     const { videoId, jobId } = job.data;
     await repository.updateStatus(jobId, 'processing');
-    const outputTemplate = join(config.audioDir, `${videoId}.%(ext)s`);
+    const outputTemplate = join(config.audioDir, `${videoId}_${jobId}.%(ext)s`);
     const args = buildAudioExtractionArgs(videoId, outputTemplate);
     let exitCode;
     let stdout;
@@ -26,6 +26,9 @@ async function processJob(job) {
         exitCode = result.exitCode;
         stdout = result.stdout;
         stderr = result.stderr;
+        console.log(`[WORKER] yt-dlp finished. exitCode=${exitCode}`);
+        console.log(`[WORKER] Full stdout: ${stdout}`);
+        console.log(`[WORKER] Full stderr: ${stderr}`);
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
@@ -35,17 +38,37 @@ async function processJob(job) {
         throw err;
     }
     if (exitCode !== 0) {
+        console.error(`[WORKER] yt-dlp exited with error code ${exitCode}`);
+        console.error(`[WORKER] stderr: ${stderr}`);
         const errorMessage = parseYtDlpError(stderr);
         await repository.updateStatus(jobId, 'error', {
             error_message: errorMessage,
         });
         throw new Error(stderr);
     }
-    const metadata = JSON.parse(stdout);
+    const jsonStart = stdout.indexOf('{');
+    const jsonEnd = stdout.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+        await repository.updateStatus(jobId, 'error', {
+            error_message: 'No valid JSON output from yt-dlp',
+        });
+        throw new Error('No valid JSON output from yt-dlp');
+    }
+    const metadata = JSON.parse(stdout.substring(jsonStart, jsonEnd + 1));
+    console.log(`[WORKER] Parsed metadata from YouTube:`);
+    console.log(`  title: ${metadata.title}`);
+    console.log(`  artist: ${metadata.artist}`);
+    console.log(`  uploader: ${metadata.uploader}`);
+    console.log(`  channel: ${metadata.channel}`);
+    console.log(`  duration: ${metadata.duration}`);
+    console.log(`  ext: ${metadata.ext}`);
+    console.log(`  format: ${metadata.format}`);
+    console.log(`  webpage_url: ${metadata.webpage_url}`);
     const ext = metadata.ext || 'm4a';
-    const filePath = join(config.audioDir, `${videoId}.${ext}`);
+    const filePath = join(config.audioDir, `${videoId}_${jobId}.${ext}`);
     const fileStat = await stat(filePath).catch(() => null);
     const fileSize = fileStat?.size ?? 0;
+    console.log(`[WORKER] File saved at: ${filePath}, size: ${fileSize} bytes`);
     await repository.updateStatus(jobId, 'ready', {
         file_path: filePath,
         file_size: fileSize,

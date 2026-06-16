@@ -34,6 +34,16 @@ export async function audioRoutes(app: FastifyInstance) {
       return reply.status(200).send(response);
     }
 
+    const inFlightJob = repository.findLatestInFlightByVideoId(videoId);
+    if (inFlightJob) {
+      const response: RequestAudioResponse = {
+        jobId: inFlightJob.id,
+        status: inFlightJob.status,
+        videoId,
+      };
+      return reply.status(202).send(response);
+    }
+
     const now = Date.now();
     const jobId = uuidv4();
 

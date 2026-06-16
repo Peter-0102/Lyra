@@ -18,7 +18,7 @@ async function processJob(job: Job<ExtractionData>) {
 
   await repository.updateStatus(jobId, 'processing');
 
-  const outputTemplate = join(config.audioDir, `${videoId}.%(ext)s`);
+  const outputTemplate = join(config.audioDir, `${videoId}_${jobId}.%(ext)s`);
 
   const args = buildAudioExtractionArgs(videoId, outputTemplate);
 
@@ -79,7 +79,7 @@ async function processJob(job: Job<ExtractionData>) {
   console.log(`  webpage_url: ${metadata.webpage_url}`);
 
   const ext = (metadata.ext as string) || 'm4a';
-  const filePath = join(config.audioDir, `${videoId}.${ext}`);
+  const filePath = join(config.audioDir, `${videoId}_${jobId}.${ext}`);
   const fileStat = await stat(filePath).catch(() => null);
   const fileSize = fileStat?.size ?? 0;
 

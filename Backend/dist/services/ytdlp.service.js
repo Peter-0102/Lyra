@@ -14,17 +14,21 @@ export function runYtDlp(args, options = {}) {
         }, timeout);
         child.stdout?.on('data', (data) => {
             const text = data.toString();
+            console.log(`[YT-DLP STDOUT]: ${text.trim()}`);
             stdout += text;
             if (options.onProgress) {
                 const progressMatch = text.match(/\[download\]\s+(\d+\.?\d*)%/);
                 if (progressMatch) {
                     const pct = parseFloat(progressMatch[1]);
+                    console.log(`[YT-DLP PROGRESS]: ${pct}%`);
                     options.onProgress(pct);
                 }
             }
         });
         child.stderr?.on('data', (data) => {
-            stderr += data.toString();
+            const text = data.toString();
+            console.log(`[YT-DLP STDERR]: ${text.trim()}`);
+            stderr += text;
         });
         child.on('close', (exitCode) => {
             clearTimeout(timer);
@@ -63,13 +67,13 @@ export function parseYtDlpError(stderr) {
 }
 export function buildAudioExtractionArgs(videoId, outputTemplate) {
     return [
-        '-f', 'bestaudio[ext=m4a]/bestaudio',
+        '-f', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
         '--no-playlist',
         '--no-warnings',
         '--print-json',
         '--progress',
         '--newline',
-        '--extractor-args', 'youtube:player_client=ios,android',
+        '--extractor-args', 'youtube:player_client=web,default',
         '-o', outputTemplate,
         `https://www.youtube.com/watch?v=${videoId}`,
     ];

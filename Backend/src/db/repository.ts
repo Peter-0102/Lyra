@@ -51,6 +51,17 @@ export function findLatestReadyByVideoId(videoId: string): AudioJob | undefined 
   return stmt.get(videoId) as AudioJob | undefined;
 }
 
+export function findLatestInFlightByVideoId(videoId: string): AudioJob | undefined {
+  const db = getDb();
+  const stmt = db.prepare(`
+    SELECT * FROM audio_jobs
+    WHERE video_id = ? AND status IN ('queued', 'processing')
+    ORDER BY created_at DESC
+    LIMIT 1
+  `);
+  return stmt.get(videoId) as AudioJob | undefined;
+}
+
 export function findExpired(now: number): AudioJob[] {
   const db = getDb();
   const stmt = db.prepare('SELECT * FROM audio_jobs WHERE expires_at <= ? AND status = ?');
