@@ -110,7 +110,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
           // Active downloads indicator
-          if (downloadState.isBusy)
+          if (downloadState.isBusy || downloadState.totalPending > 0)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               color: AppColors.primary.withAlpha(26),
@@ -126,7 +126,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                   const SizedBox(width: 10),
                   Text(
-                    'Downloading ${downloadState.totalActive} track(s)...',
+                    downloadState.totalPending > 0
+                        ? 'Downloading ${downloadState.totalActive} track(s), ${downloadState.totalPending} in queue...'
+                        : 'Downloading ${downloadState.totalActive} track(s)...',
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontSize: 13,
@@ -379,13 +381,46 @@ class _DownloadButton extends ConsumerWidget {
     final isDownloading = downloadState.activeDownloads.containsKey(videoId);
     final activeItem = downloadState.activeDownloads[videoId];
     final isCompleted = downloadState.isBusyOrDone(videoId);
+    final isQueued = downloadState.pendingQueue.any((d) => d.videoId == videoId);
+    final queuePosition = downloadState.pendingQueue
+        .where((d) => d.videoId == videoId)
+        .map((d) => d.queuePosition)
+        .firstOrNull;
 
     final failedItem = downloadState.failedDownloads
         .where((d) => d.videoId == videoId)
         .toList();
 
-    if (isCompleted && !isDownloading) {
+    if (isCompleted && !isDownloading && !isQueued) {
       return const Icon(Icons.check_circle, color: AppColors.primary, size: 28);
+    }
+
+    if (isQueued && !isDownloading) {
+      return Tooltip(
+        message: 'In queue (position $queuePosition)',
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.textSecondaryDark,
+                value: null,
+              ),
+            ),
+            Text(
+              '$queuePosition',
+              style: const TextStyle(
+                color: AppColors.textSecondaryDark,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     if (isDownloading && activeItem != null) {
@@ -429,7 +464,7 @@ class _DownloadButton extends ConsumerWidget {
           color: AppColors.textSecondaryDark, size: 26),
       onPressed: () {
         final videoId = video.id.toString();
-        print('[DOWNLOAD] UI: Download button tapped => videoId="$videoId", title="${video.title}", author="${video.author}"');
+        final isCurrentlyBusy = ref.read(downloadProvider).isBusy;
         ref.read(downloadProvider.notifier).startDownload(
               videoId,
               video.title,
@@ -437,7 +472,11 @@ class _DownloadButton extends ConsumerWidget {
             );
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Downloading: ${video.title}'),
+            content: Text(
+              isCurrentlyBusy
+                  ? 'Queued: ${video.title}'
+                  : 'Downloading: ${video.title}',
+            ),
             backgroundColor: AppColors.cardDark,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),

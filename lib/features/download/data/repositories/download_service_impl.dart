@@ -109,7 +109,7 @@ class DownloadServiceImpl implements DownloadService {
         }
 
         throw NetworkFailure('Unexpected response: ${response.statusCode}');
-      } on DioException catch (e) {
+      }       on DioException catch (e) {
         if (e.type == DioExceptionType.cancel) {
           throw const StorageFailure('Download cancelled by user.');
         }
@@ -120,6 +120,14 @@ class DownloadServiceImpl implements DownloadService {
         if (e.response?.statusCode == 429 && attempt < _max429Retries) {
           final delaySec = 5 * (attempt + 1);
           await Future.delayed(Duration(seconds: delaySec));
+          continue;
+        }
+        final isTransient = e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout;
+        if (isTransient && attempt < _max429Retries) {
+          await Future.delayed(Duration(seconds: 5 * (attempt + 1)));
           continue;
         }
         throw NetworkFailure('Failed to request extraction: ${e.message}');
@@ -239,6 +247,14 @@ class DownloadServiceImpl implements DownloadService {
         }
         if (e.response?.statusCode == 410) {
           throw const YouTubeFailure('Audio file expired. Please request extraction again.');
+        }
+        final isTransient = e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.sendTimeout ||
+            e.type == DioExceptionType.receiveTimeout;
+        if (isTransient && attempt < _max429Retries) {
+          await Future.delayed(Duration(seconds: 5 * (attempt + 1)));
+          continue;
         }
         throw NetworkFailure('Download failed: ${e.message}');
       }

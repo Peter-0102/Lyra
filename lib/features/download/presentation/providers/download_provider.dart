@@ -4,9 +4,10 @@ import '../../../../core/di/injection_container.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/repositories/download_service.dart';
 
-// Re-export domain types for convenience in UI layer
 export '../../domain/repositories/download_service.dart'
     show DownloadState, DownloadProgress;
+
+const Duration _queueDelay = Duration(seconds: 2);
 
 class DownloadItem {
   final String videoId;
@@ -18,6 +19,7 @@ class DownloadItem {
   final int? receivedBytes;
   final String? filePath;
   final String? errorMessage;
+  final int? queuePosition;
 
   const DownloadItem({
     required this.videoId,
@@ -29,6 +31,7 @@ class DownloadItem {
     this.receivedBytes,
     this.filePath,
     this.errorMessage,
+    this.queuePosition,
   });
 
   DownloadItem copyWith({
@@ -38,6 +41,7 @@ class DownloadItem {
     int? receivedBytes,
     String? filePath,
     String? errorMessage,
+    int? queuePosition,
   }) {
     return DownloadItem(
       videoId: videoId,
@@ -49,6 +53,7 @@ class DownloadItem {
       receivedBytes: receivedBytes ?? this.receivedBytes,
       filePath: filePath ?? this.filePath,
       errorMessage: errorMessage,
+      queuePosition: queuePosition,
     );
   }
 
@@ -75,60 +80,58 @@ class DownloadQueueState {
   final Map<String, DownloadItem> activeDownloads;
   final List<DownloadItem> completedDownloads;
   final List<DownloadItem> failedDownloads;
+  final List<DownloadItem> pendingQueue;
 
   const DownloadQueueState({
     this.activeDownloads = const {},
     this.completedDownloads = const [],
     this.failedDownloads = const [],
+    this.pendingQueue = const [],
   });
 
   DownloadQueueState copyWith({
     Map<String, DownloadItem>? activeDownloads,
     List<DownloadItem>? completedDownloads,
     List<DownloadItem>? failedDownloads,
+    List<DownloadItem>? pendingQueue,
   }) {
     return DownloadQueueState(
       activeDownloads: activeDownloads ?? this.activeDownloads,
       completedDownloads: completedDownloads ?? this.completedDownloads,
       failedDownloads: failedDownloads ?? this.failedDownloads,
+      pendingQueue: pendingQueue ?? this.pendingQueue,
     );
   }
 
   int get totalActive => activeDownloads.length;
   int get totalCompleted => completedDownloads.length;
   int get totalFailed => failedDownloads.length;
+  int get totalPending => pendingQueue.length;
   bool get isBusy => activeDownloads.isNotEmpty;
 
-  /// Returns true if the given videoId is currently downloading or completed.
   bool isBusyOrDone(String videoId) =>
       activeDownloads.containsKey(videoId) ||
-      completedDownloads.any((d) => d.videoId == videoId);
+      completedDownloads.any((d) => d.videoId == videoId) ||
+      pendingQueue.any((d) => d.videoId == videoId);
 }
 
 class DownloadNotifier extends StateNotifier<DownloadQueueState> {
   final DownloadService _downloadService;
   StreamSubscription<DownloadProgress>? _progressSub;
   String? _currentTrackingVideoId;
+  bool _isProcessing = false;
 
   DownloadNotifier(this._downloadService) : super(const DownloadQueueState()) {
     _initProgressListener();
   }
 
   void _initProgressListener() {
-    print('[DOWNLOAD] DownloadNotifier: Initializing progress listener');
     _progressSub = _downloadService.progressStream.listen((downloadProgress) {
       final videoId = _currentTrackingVideoId;
-      print('[DOWNLOAD] DownloadNotifier: Progress event => state=${downloadProgress.state}, progress=${downloadProgress.progress}, videoId=$videoId');
-      if (videoId == null) {
-        print('[DOWNLOAD] DownloadNotifier: No active tracking videoId, ignoring progress');
-        return;
-      }
+      if (videoId == null) return;
 
       final current = state.activeDownloads[videoId];
-      if (current == null) {
-        print('[DOWNLOAD] DownloadNotifier: No active download item for videoId=$videoId, ignoring');
-        return;
-      }
+      if (current == null) return;
 
       final updated = current.copyWith(
         status: downloadProgress.state,
@@ -145,77 +148,105 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
   }
 
   Future<void> startDownload(String videoId, String title, String artist) async {
-    print('[DOWNLOAD] DownloadNotifier: startDownload called => videoId="$videoId", title="$title", artist="$artist"');
-
-    // Prevent duplicate downloads
-    if (state.isBusyOrDone(videoId)) {
-      print('[DOWNLOAD] DownloadNotifier: Duplicate download blocked for videoId="$videoId" (isBusyOrDone=true)');
-      return;
-    }
-
-    _currentTrackingVideoId = videoId;
+    if (state.isBusyOrDone(videoId)) return;
 
     final item = DownloadItem(
       videoId: videoId,
       title: title,
       artist: artist,
-      status: DownloadState.resolving,
+      status: DownloadState.idle,
       progress: 0.0,
     );
 
+    if (state.isBusy) {
+      final queuePos = state.pendingQueue.length + 1;
+      final queuedItem = item.copyWith(
+        status: DownloadState.idle,
+        queuePosition: queuePos,
+      );
+      state = state.copyWith(
+        pendingQueue: [...state.pendingQueue, queuedItem],
+      );
+      return;
+    }
+
+    await _runDownload(item);
+  }
+
+  Future<void> _runDownload(DownloadItem item) async {
+    _currentTrackingVideoId = item.videoId;
+    _isProcessing = true;
+
+    final activeItem = item.copyWith(status: DownloadState.resolving, queuePosition: null);
     final newMap = Map<String, DownloadItem>.from(state.activeDownloads);
-    newMap[videoId] = item;
+    newMap[item.videoId] = activeItem;
     state = state.copyWith(activeDownloads: newMap);
-    print('[DOWNLOAD] DownloadNotifier: Added to activeDownloads map');
 
     try {
-      print('[DOWNLOAD] DownloadNotifier: Calling downloadService.downloadYoutubeSong...');
       final filePath = await _downloadService.downloadYoutubeSong(
-        videoId,
-        title: title,
-        artist: artist,
+        item.videoId,
+        title: item.title,
+        artist: item.artist,
       );
-      print('[DOWNLOAD] DownloadNotifier: Download succeeded! filePath="$filePath"');
 
-      final completedItem = item.copyWith(
+      final completedItem = activeItem.copyWith(
         status: DownloadState.completed,
         progress: 1.0,
         filePath: filePath,
       );
 
       final updatedMap = Map<String, DownloadItem>.from(state.activeDownloads);
-      updatedMap.remove(videoId);
+      updatedMap.remove(item.videoId);
 
       state = state.copyWith(
         activeDownloads: updatedMap,
         completedDownloads: [...state.completedDownloads, completedItem],
       );
-      print('[DOWNLOAD] DownloadNotifier: Moved to completedDownloads');
     } on Failure catch (e) {
-      print('[DOWNLOAD] DownloadNotifier: Download FAILED with Failure => ${e.runtimeType}: ${e.message}');
-      final failedItem = item.copyWith(
+      final failedItem = activeItem.copyWith(
         status: DownloadState.error,
         errorMessage: e.message,
       );
 
       final updatedMap = Map<String, DownloadItem>.from(state.activeDownloads);
-      updatedMap.remove(videoId);
+      updatedMap.remove(item.videoId);
 
       state = state.copyWith(
         activeDownloads: updatedMap,
         failedDownloads: [...state.failedDownloads, failedItem],
       );
-      print('[DOWNLOAD] DownloadNotifier: Moved to failedDownloads');
     } finally {
-      if (_currentTrackingVideoId == videoId) {
+      if (_currentTrackingVideoId == item.videoId) {
         _currentTrackingVideoId = null;
-        print('[DOWNLOAD] DownloadNotifier: Cleared _currentTrackingVideoId');
       }
+      _isProcessing = false;
+      _reindexQueue();
+      await _processNext();
     }
   }
 
+  void _reindexQueue() {
+    final reindexed = <DownloadItem>[];
+    for (var i = 0; i < state.pendingQueue.length; i++) {
+      reindexed.add(state.pendingQueue[i].copyWith(queuePosition: i + 1));
+    }
+    state = state.copyWith(pendingQueue: reindexed);
+  }
+
+  Future<void> _processNext() async {
+    if (_isProcessing) return;
+    if (state.pendingQueue.isEmpty) return;
+
+    await Future.delayed(_queueDelay);
+
+    final next = state.pendingQueue.first;
+    final remaining = state.pendingQueue.sublist(1);
+    state = state.copyWith(pendingQueue: remaining);
+
+    await _runDownload(next);
+  }
+
   Future<void> cancelAllDownloads() async {
-    print('[DOWNLOAD] DownloadNotifier: cancelAllDownloads called');
     await _downloadService.cancelDownload();
 
     final cancelledItems = state.activeDownloads.values
@@ -224,15 +255,15 @@ class DownloadNotifier extends StateNotifier<DownloadQueueState> {
 
     state = state.copyWith(
       activeDownloads: {},
+      pendingQueue: [],
       failedDownloads: [...state.failedDownloads, ...cancelledItems],
     );
 
     _currentTrackingVideoId = null;
-    print('[DOWNLOAD] DownloadNotifier: All downloads cancelled');
+    _isProcessing = false;
   }
 
   Future<void> retryDownload(String videoId) async {
-    print('[DOWNLOAD] DownloadNotifier: retryDownload called for videoId="$videoId"');
     final failed = state.failedDownloads.firstWhere(
       (d) => d.videoId == videoId,
       orElse: () => throw StateError('No failed download found for $videoId'),
