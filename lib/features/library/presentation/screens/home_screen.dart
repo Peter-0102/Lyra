@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../audio_player/presentation/widgets/mini_player.dart';
+import '../../../playlists/presentation/screens/playlist_list_screen.dart';
 import '../providers/library_provider.dart';
 import '../widgets/song_list_tile.dart';
 import 'search_screen.dart';
@@ -21,7 +22,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final pages = [
       const _LibraryTab(),
       const SearchScreen(),
-      const _FavoritesTab(),
+      const PlaylistListScreen(),
     ];
 
     return Scaffold(
@@ -76,8 +77,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 label: 'Search',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_rounded),
-                label: 'Favorites',
+                icon: Icon(Icons.playlist_play_rounded),
+                label: 'Playlists',
               ),
             ],
           ),
@@ -286,36 +287,4 @@ class _LibraryTab extends ConsumerWidget {
   }
 }
 
-class _FavoritesTab extends StatelessWidget {
-  const _FavoritesTab();
 
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.favorite_border_rounded,
-              color: AppColors.textSecondaryDark, size: 64),
-          SizedBox(height: 16),
-          Text(
-            'Favorites',
-            style: TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'Coming soon',
-            style: TextStyle(
-              color: AppColors.textSecondaryDark,
-              fontSize: 13,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

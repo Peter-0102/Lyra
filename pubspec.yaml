@@ -27,6 +27,12 @@ dependencies:
   # Disk Space
   disk_usage: ^1.0.0
 
+  # Local Database
+  sqflite: ^2.3.0
+
+  # Path utilities (for database path joining)
+  path: ^1.9.0
+
   # Platform & Hardware Integration
   permission_handler: ^11.3.1
 

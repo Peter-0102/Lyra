@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../audio_player/domain/entities/song.dart';
 import '../../../audio_player/presentation/providers/player_provider.dart';
+import '../../../playlists/presentation/providers/playlist_provider.dart';
+import '../../../playlists/presentation/widgets/add_to_playlist_sheet.dart';
+import '../../../playlists/presentation/widgets/create_playlist_dialog.dart';
 
 class SongListTile extends ConsumerWidget {
   final Song song;
@@ -271,6 +274,66 @@ class SongListTile extends ConsumerWidget {
                     duration: const Duration(seconds: 1),
                   ),
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_rounded,
+                  color: AppColors.textPrimaryDark),
+              title: const Text('Add to playlist',
+                  style: TextStyle(color: AppColors.textPrimaryDark)),
+              onTap: () async {
+                final currentContext = context;
+
+                var state = ref.read(playlistProvider);
+                if (state.isLoading) return;
+
+                if (state.playlists.isEmpty) {
+                  final result =
+                      await showCreatePlaylistDialog(currentContext);
+                  if (result == null) return;
+                  final id = await ref
+                      .read(playlistProvider.notifier)
+                      .createPlaylist(result.name,
+                          description: result.description);
+                  if (id == null) {
+                    if (currentContext.mounted) {
+                      ScaffoldMessenger.of(currentContext).showSnackBar(
+                        SnackBar(
+                          content:
+                              const Text('Failed to create playlist'),
+                          backgroundColor: AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  state = ref.read(playlistProvider);
+                }
+
+                if (ctx.mounted) Navigator.of(ctx).pop();
+
+                if (!currentContext.mounted) return;
+
+                await Future.delayed(Duration.zero);
+
+                if (!currentContext.mounted) return;
+
+                final updatedPlaylists =
+                    ref.read(playlistProvider).playlists;
+                if (updatedPlaylists.isEmpty) {
+                  ScaffoldMessenger.of(currentContext).showSnackBar(
+                    SnackBar(
+                      content: const Text('Create a playlist first'),
+                      backgroundColor: AppColors.cardDark,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+
+                showPlaylistPicker(
+                    currentContext, ref, updatedPlaylists, song);
               },
             ),
             const SizedBox(height: 8),
