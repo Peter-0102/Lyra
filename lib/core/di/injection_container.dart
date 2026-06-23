@@ -14,6 +14,8 @@ import '../../features/audio_player/domain/repositories/audio_repository.dart';
 import '../../features/audio_player/data/repositories/audio_repository_impl.dart';
 import '../../features/playlists/domain/repositories/playlist_repository.dart';
 import '../../features/playlists/data/repositories/playlist_repository_impl.dart';
+import '../../features/favorites/domain/repositories/favorites_repository.dart';
+import '../../features/favorites/data/repositories/favorites_repository_impl.dart';
 
 final GetIt sl = GetIt.instance;
 
@@ -61,4 +63,8 @@ Future<void> initDI() async {
   final playlistRepo = PlaylistRepositoryImpl();
   await playlistRepo.initialize();
   sl.registerSingleton<PlaylistRepository>(playlistRepo);
+
+  sl.registerLazySingleton<FavoritesRepository>(
+    () => FavoritesRepositoryImpl(),
+  );
 }

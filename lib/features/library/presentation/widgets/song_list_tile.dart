@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../audio_player/domain/entities/song.dart';
 import '../../../audio_player/presentation/providers/player_provider.dart';
+import '../../../favorites/presentation/providers/favorites_provider.dart';
 import '../../../playlists/presentation/providers/playlist_provider.dart';
 import '../../../playlists/presentation/widgets/add_to_playlist_sheet.dart';
 import '../../../playlists/presentation/widgets/create_playlist_dialog.dart';
@@ -14,6 +15,7 @@ class SongListTile extends ConsumerWidget {
   final VoidCallback? onTap;
   final Widget? trailing;
   final List<Song>? allSongs;
+  final bool showHeart;
 
   const SongListTile({
     super.key,
@@ -23,11 +25,14 @@ class SongListTile extends ConsumerWidget {
     this.onTap,
     this.trailing,
     this.allSongs,
+    this.showHeart = true,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerProvider);
+    final favoritesState = ref.watch(favoritesProvider);
+    final isFav = favoritesState.favoriteIds.contains(song.id);
     final active = playerState.currentSong?.id == song.id;
 
     return Material(
@@ -129,6 +134,19 @@ class SongListTile extends ConsumerWidget {
                   fontSize: 12,
                 ),
               ),
+              if (showHeart) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    ref.read(favoritesProvider.notifier).toggleFavorite(song);
+                  },
+                  child: Icon(
+                    isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: isFav ? AppColors.primary : AppColors.textSecondaryDark,
+                    size: 20,
+                  ),
+                ),
+              ],
               if (trailing != null) ...[
                 const SizedBox(width: 4),
                 trailing!,
@@ -151,6 +169,8 @@ class SongListTile extends ConsumerWidget {
 
   void _showSongOptions(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(playerProvider.notifier);
+    final favoritesState = ref.read(favoritesProvider);
+    final isFav = favoritesState.favoriteIds.contains(song.id);
 
     showModalBottomSheet(
       context: context,
@@ -274,6 +294,20 @@ class SongListTile extends ConsumerWidget {
                     duration: const Duration(seconds: 1),
                   ),
                 );
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                color: isFav ? AppColors.primary : AppColors.textPrimaryDark,
+              ),
+              title: Text(
+                isFav ? 'Remove from Favorites' : 'Add to Favorites',
+                style: const TextStyle(color: AppColors.textPrimaryDark),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                ref.read(favoritesProvider.notifier).toggleFavorite(song);
               },
             ),
             ListTile(
