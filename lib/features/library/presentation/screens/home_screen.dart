@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../audio_player/presentation/widgets/mini_player.dart';
 import '../../../playlists/presentation/screens/playlist_list_screen.dart';
 import '../../../favorites/presentation/screens/favorites_screen.dart';
+import '../../../download/presentation/screens/downloads_screen.dart';
 import '../providers/library_provider.dart';
 import '../widgets/song_list_tile.dart';
 import 'search_screen.dart';
@@ -25,6 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const SearchScreen(),
       const FavoritesScreen(),
       const PlaylistListScreen(),
+      const DownloadsScreen(),
     ];
 
     return Scaffold(
@@ -85,6 +87,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.playlist_play_rounded),
                 label: 'Playlists',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.download_rounded),
+                label: 'Downloads',
               ),
             ],
           ),

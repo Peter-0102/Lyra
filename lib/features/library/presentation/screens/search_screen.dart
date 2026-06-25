@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../download/domain/utils/duplicate_detector.dart';
 import '../../../download/presentation/providers/download_provider.dart';
+import '../providers/library_provider.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -462,7 +464,92 @@ class _DownloadButton extends ConsumerWidget {
     return IconButton(
       icon: const Icon(Icons.download_rounded,
           color: AppColors.textSecondaryDark, size: 26),
-      onPressed: () {
+      onPressed: () async {
+        final libraryState = ref.read(libraryProvider);
+        final duplicates = findDuplicateSongs(
+          libraryState.songs,
+          video.title,
+          video.author,
+        );
+
+        if (duplicates.isNotEmpty) {
+          final proceed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              backgroundColor: AppColors.cardDark,
+              title: const Text(
+                'Already in library?',
+                style: TextStyle(color: AppColors.textPrimaryDark),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Similar songs found in your library:',
+                    style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  ...duplicates.take(3).map((s) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.music_note_rounded,
+                            color: AppColors.textSecondaryDark, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                s.title,
+                                style: const TextStyle(
+                                    color: AppColors.textPrimaryDark, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                s.artist,
+                                style: const TextStyle(
+                                    color: AppColors.textSecondaryDark, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                  if (duplicates.length > 3)
+                    Text(
+                      '+${duplicates.length - 3} more',
+                      style: const TextStyle(
+                          color: AppColors.textSecondaryDark, fontSize: 12),
+                    ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Download anyway?',
+                    style: TextStyle(color: AppColors.textSecondaryDark, fontSize: 13),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('Download',
+                      style: TextStyle(color: AppColors.primary)),
+                ),
+              ],
+            ),
+          );
+          if (proceed != true) return;
+        }
+
         final videoId = video.id.toString();
         final isCurrentlyBusy = ref.read(downloadProvider).isBusy;
         ref.read(downloadProvider.notifier).startDownload(
@@ -470,18 +557,20 @@ class _DownloadButton extends ConsumerWidget {
               video.title,
               video.author,
             );
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isCurrentlyBusy
-                  ? 'Queued: ${video.title}'
-                  : 'Downloading: ${video.title}',
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isCurrentlyBusy
+                    ? 'Queued: ${video.title}'
+                    : 'Downloading: ${video.title}',
+              ),
+              backgroundColor: AppColors.cardDark,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
             ),
-            backgroundColor: AppColors.cardDark,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        }
       },
     );
   }
