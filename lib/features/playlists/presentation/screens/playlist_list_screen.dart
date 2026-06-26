@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../domain/entities/playlist.dart';
 import '../providers/playlist_provider.dart';
 import '../widgets/create_playlist_dialog.dart';
-import 'playlist_detail_screen.dart';
 
 class PlaylistListScreen extends ConsumerWidget {
   const PlaylistListScreen({super.key});
@@ -146,13 +146,7 @@ class _PlaylistCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlaylistDetailScreen(playlistId: id),
-              ),
-            );
-          },
+          onTap: () => context.push('/playlist/$id'),
           onLongPress: () => _showOptions(context, ref, id, name),
           child: Padding(
             padding: const EdgeInsets.all(14),

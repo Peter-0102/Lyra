@@ -4,8 +4,10 @@ import 'package:just_audio_background/just_audio_background.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/repositories/audio_player_service.dart';
 
+const int _minAudioFileBytes = 1024;
+
 class AudioPlayerServiceImpl implements AudioPlayerService {
-  final AudioPlayer _player;
+  AudioPlayer _player;
 
   AudioPlayerServiceImpl({required AudioPlayer player}) : _player = player;
 
@@ -85,6 +87,13 @@ class AudioPlayerServiceImpl implements AudioPlayerService {
       final file = File(filePath);
       if (!await file.exists()) {
         throw const AudioPlaybackFailure('Audio file not found on device.');
+      }
+
+      final fileSize = await file.length();
+      if (fileSize < _minAudioFileBytes) {
+        throw AudioPlaybackFailure(
+          'Audio file is corrupt or empty ($fileSize bytes).',
+        );
       }
 
       final audioSource = AudioSource.file(
@@ -323,6 +332,14 @@ class AudioPlayerServiceImpl implements AudioPlayerService {
   // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
+
+  @override
+  Future<void> reset() async {
+    try {
+      await _player.stop();
+      _player = AudioPlayer();
+    } catch (_) {}
+  }
 
   @override
   Future<void> dispose() async {

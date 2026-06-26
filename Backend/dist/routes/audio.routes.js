@@ -10,9 +10,10 @@ const requestBodySchema = z.object({
     videoId: z.string().regex(videoIdRegex, 'Invalid videoId format'),
 });
 export async function audioRoutes(app) {
-    app.post('/request', async (request, reply) => {
+    app.post('/request', { preHandler: [app.authenticate] }, async (request, reply) => {
         const { videoId } = requestBodySchema.parse(request.body);
-        const cachedJob = repository.findLatestReadyByVideoId(videoId);
+        const userId = request.user.userId;
+        const cachedJob = await repository.findLatestReadyByVideoId(videoId);
         if (cachedJob && cachedJob.file_path && existsSync(cachedJob.file_path)) {
             const response = {
                 jobId: cachedJob.id,
@@ -26,7 +27,7 @@ export async function audioRoutes(app) {
             };
             return reply.status(200).send(response);
         }
-        const inFlightJob = repository.findLatestInFlightByVideoId(videoId);
+        const inFlightJob = await repository.findLatestInFlightByVideoId(videoId);
         if (inFlightJob) {
             const response = {
                 jobId: inFlightJob.id,
@@ -40,6 +41,7 @@ export async function audioRoutes(app) {
         const job = {
             id: jobId,
             video_id: videoId,
+            user_id: userId,
             status: 'queued',
             file_path: null,
             file_size: null,
@@ -53,7 +55,7 @@ export async function audioRoutes(app) {
             updated_at: now,
             expires_at: now + config.fileTtlMs,
         };
-        repository.createJob(job);
+        await repository.createJob(job);
         const queue = getAudioQueue();
         await queue.add('extract', { videoId, jobId });
         const response = {
@@ -63,9 +65,9 @@ export async function audioRoutes(app) {
         };
         return reply.status(202).send(response);
     });
-    app.get('/status/:jobId', async (request, reply) => {
+    app.get('/status/:jobId', { preHandler: [app.authenticate] }, async (request, reply) => {
         const { jobId } = request.params;
-        const job = repository.findByJobId(jobId);
+        const job = await repository.findByJobId(jobId);
         if (!job) {
             return reply.status(404).send({
                 statusCode: 404,
@@ -90,7 +92,7 @@ export async function audioRoutes(app) {
         }
         return reply.send(response);
     });
-    app.get('/file/:videoId', async (request, reply) => {
+    app.get('/file/:videoId', { preHandler: [app.authenticate] }, async (request, reply) => {
         const { videoId } = request.params;
         if (!videoIdRegex.test(videoId)) {
             return reply.status(400).send({
@@ -99,7 +101,7 @@ export async function audioRoutes(app) {
                 message: 'Invalid videoId format',
             });
         }
-        const job = repository.findLatestReadyByVideoId(videoId);
+        const job = await repository.findLatestReadyByVideoId(videoId);
         if (!job) {
             return reply.status(404).send({
                 statusCode: 404,

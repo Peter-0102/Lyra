@@ -2,6 +2,7 @@ export type JobStatus = 'queued' | 'processing' | 'ready' | 'error';
 export interface AudioJob {
     id: string;
     video_id: string;
+    user_id: string | null;
     status: JobStatus;
     file_path: string | null;
     file_size: number | null;
@@ -42,7 +43,7 @@ export interface StatusResponse {
 export interface HealthResponse {
     status: 'ok' | 'degraded';
     redis: boolean;
-    sqlite: boolean;
+    database: boolean;
     ytDlp: boolean;
     ytDlpVersion?: string;
 }

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_repository.dart';
@@ -25,38 +26,49 @@ class AudioRepositoryImpl implements AudioRepository {
       final List<Song> songs = [];
       for (final file in files) {
         if (file is File) {
-          final fileName = file.uri.pathSegments.last;
+          final fileName = p.basename(file.path);
           final nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
           final parts = nameWithoutExt.split('_');
+
+          int offset = 0;
+          if (parts.isNotEmpty &&
+              parts.first.length == 11 &&
+              RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(parts.first)) {
+            offset = 1;
+          }
+
+          final remainingParts = parts.sublist(offset);
 
           String title;
           String artist;
 
-          if (parts.length >= 3) {
-            final lastPart = parts.last;
+          if (remainingParts.length >= 3) {
+            final lastPart = remainingParts.last;
             final isTimestamp = int.tryParse(lastPart) != null;
 
-            if (isTimestamp && parts.length >= 3) {
-              artist = _formatFileName(parts.sublist(0, parts.length - 2).join('_'));
-              title = _formatFileName(parts[parts.length - 2]);
+            if (isTimestamp) {
+              artist = _formatFileName(
+                  remainingParts.sublist(0, remainingParts.length - 2).join('_'));
+              title = _formatFileName(remainingParts[remainingParts.length - 2]);
             } else {
-              artist = _formatFileName(parts.first);
-              title = _formatFileName(parts.sublist(1).join('_'));
+              artist = _formatFileName(remainingParts.first);
+              title = _formatFileName(remainingParts.sublist(1).join('_'));
             }
-          } else if (parts.length == 2) {
-            artist = _formatFileName(parts[0]);
-            title = _formatFileName(parts[1]);
+          } else if (remainingParts.length == 2) {
+            artist = _formatFileName(remainingParts[0]);
+            title = _formatFileName(remainingParts[1]);
           } else {
             artist = 'Unknown Artist';
             title = _formatFileName(nameWithoutExt);
           }
 
           songs.add(Song(
-            id: fileName.hashCode.toString(),
+            id: stableIdFromFileName(fileName),
             title: title,
             artist: artist,
             filePath: file.path,
             duration: Duration.zero,
+            videoId: extractVideoIdFromFileName(fileName),
           ));
         }
       }

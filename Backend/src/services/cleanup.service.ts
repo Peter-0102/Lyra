@@ -3,7 +3,7 @@ import cron from 'node-cron';
 import * as repository from '../db/repository.js';
 
 export async function cleanupExpiredFiles(): Promise<void> {
-  const expired = repository.findExpired(Date.now());
+  const expired = await repository.findExpired(Date.now());
 
   for (const job of expired) {
     if (job.file_path) {
@@ -15,7 +15,7 @@ export async function cleanupExpiredFiles(): Promise<void> {
       }
     }
 
-    repository.markDeleted(job.id);
+    await repository.markDeleted(job.id);
   }
 
   if (expired.length > 0) {

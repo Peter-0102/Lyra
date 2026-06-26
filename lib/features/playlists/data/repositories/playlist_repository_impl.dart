@@ -1,58 +1,18 @@
 import 'dart:math';
 import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import '../../../../core/db/database_helper.dart';
 import '../../domain/entities/playlist.dart';
 import '../../domain/repositories/playlist_repository.dart';
 import '../../../audio_player/domain/entities/song.dart';
 
 class PlaylistRepositoryImpl implements PlaylistRepository {
-  Database? _db;
+  final DatabaseHelper _dbHelper;
+
+  PlaylistRepositoryImpl(this._dbHelper);
 
   @override
   Future<void> initialize() async {
-    await _database;
-  }
-
-  Future<Database> get _database async {
-    if (_db != null) return _db!;
-    _db = await _initDb();
-    return _db!;
-  }
-
-  Future<Database> _initDb() async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = p.join(dir.path, 'mispoti.db');
-    return openDatabase(
-      path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE playlists (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            description TEXT,
-            createdAt INTEGER NOT NULL,
-            updatedAt INTEGER NOT NULL
-          )
-        ''');
-        await db.execute('''
-          CREATE TABLE playlist_songs (
-            playlistId TEXT NOT NULL,
-            songId TEXT NOT NULL,
-            title TEXT NOT NULL,
-            artist TEXT NOT NULL,
-            filePath TEXT NOT NULL,
-            duration INTEGER NOT NULL,
-            thumbnailUrl TEXT,
-            orderIndex INTEGER NOT NULL,
-            addedAt INTEGER NOT NULL,
-            PRIMARY KEY (playlistId, songId)
-          )
-        ''');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {},
-    );
+    await _dbHelper.database;
   }
 
   String _generateId() {
@@ -63,7 +23,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   @override
   Future<List<Playlist>> getAllPlaylists() async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     final rows = await db.query('playlists', orderBy: 'updatedAt DESC');
     final playlists = <Playlist>[];
     for (final row in rows) {
@@ -84,7 +44,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   @override
   Future<Playlist?> getPlaylist(String id) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     final rows = await db.query('playlists', where: 'id = ?', whereArgs: [id]);
     if (rows.isEmpty) return null;
     final row = rows.first;
@@ -115,13 +75,14 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
               filePath: r['filePath'] as String,
               duration: Duration(milliseconds: r['duration'] as int),
               thumbnailUrl: r['thumbnailUrl'] as String?,
+              videoId: r['videoId'] as String?,
             ))
         .toList();
   }
 
   @override
   Future<String> createPlaylist(Playlist playlist) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     final id = playlist.id.isEmpty ? _generateId() : playlist.id;
     final now = DateTime.now();
     await db.insert('playlists', {
@@ -136,7 +97,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   @override
   Future<void> updatePlaylist(Playlist playlist) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     await db.update(
       'playlists',
       {
@@ -151,7 +112,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   @override
   Future<void> deletePlaylist(String id) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     await db.delete('playlist_songs',
         where: 'playlistId = ?', whereArgs: [id]);
     await db.delete('playlists', where: 'id = ?', whereArgs: [id]);
@@ -159,7 +120,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   @override
   Future<void> addSongToPlaylist(String playlistId, Song song) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     final count = Sqflite.firstIntValue(
       await db.rawQuery(
           'SELECT COUNT(*) FROM playlist_songs WHERE playlistId = ?',
@@ -173,6 +134,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       'filePath': song.filePath,
       'duration': song.duration.inMilliseconds,
       'thumbnailUrl': song.thumbnailUrl,
+      'videoId': song.videoId,
       'orderIndex': (count ?? 0),
       'addedAt': DateTime.now().millisecondsSinceEpoch,
     });
@@ -187,7 +149,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   @override
   Future<void> removeSongFromPlaylist(
       String playlistId, String songId) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     await db.delete('playlist_songs', where: 'playlistId = ? AND songId = ?',
         whereArgs: [playlistId, songId]);
     await _reindexSongs(playlistId, db);
@@ -202,7 +164,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   @override
   Future<void> reorderSongs(
       String playlistId, int oldIndex, int newIndex) async {
-    final db = await _database;
+    final db = await _dbHelper.database;
     if (oldIndex == newIndex) return;
 
     final rows = await db.query('playlist_songs',

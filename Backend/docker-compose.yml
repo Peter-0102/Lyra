@@ -1,4 +1,21 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mispoti
+      POSTGRES_PASSWORD: mispoti
+      POSTGRES_DB: mispoti
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mispoti -d mispoti"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build: .
     ports:
@@ -9,12 +26,17 @@ services:
       - PORT=3000
       - HOST=0.0.0.0
       - REDIS_URL=redis://redis:6379
-      - DATABASE_PATH=/data/db.sqlite
+      - DATABASE_URL=postgresql://mispoti:mispoti@postgres:5432/mispoti
       - AUDIO_DIR=/data/audio
       - FILE_TTL_HOURS=168
       - RATE_LIMIT_MAX=10
       - CORS_ORIGIN=*
+      - JWT_SECRET=dev-secret-change-in-production
+      - JWT_EXPIRES_IN=15m
+      - REFRESH_TOKEN_EXPIRES_IN=7d
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -32,10 +54,12 @@ services:
       - audio_data:/data
     environment:
       - REDIS_URL=redis://redis:6379
-      - DATABASE_PATH=/data/db.sqlite
+      - DATABASE_URL=postgresql://mispoti:mispoti@postgres:5432/mispoti
       - AUDIO_DIR=/data/audio
       - FILE_TTL_HOURS=168
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
@@ -54,5 +78,6 @@ services:
       - redis_data:/data
 
 volumes:
+  postgres_data:
   audio_data:
   redis_data:

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../audio_player/presentation/widgets/mini_player.dart';
 import '../../../playlists/presentation/screens/playlist_list_screen.dart';
 import '../../../favorites/presentation/screens/favorites_screen.dart';
@@ -168,6 +170,18 @@ class _LibraryTab extends ConsumerWidget {
                     color: AppColors.textSecondaryDark),
                 onPressed: () {
                   ref.read(libraryProvider.notifier).refreshSongs();
+                },
+              ),
+              IconButton(
+                icon: Icon(
+                  ref.watch(authProvider).isAuthenticated
+                      ? Icons.settings_rounded
+                      : Icons.login_rounded,
+                  color: AppColors.textSecondaryDark,
+                ),
+                onPressed: () {
+                  final isAuth = ref.read(authProvider).isAuthenticated;
+                  context.push(isAuth ? '/settings' : '/login');
                 },
               ),
             ],

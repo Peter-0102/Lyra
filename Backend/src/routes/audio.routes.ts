@@ -14,27 +14,69 @@ const requestBodySchema = z.object({
   videoId: z.string().regex(videoIdRegex, 'Invalid videoId format'),
 });
 
+function formatStatusResponse(job: AudioJob): StatusResponse {
+  const response: StatusResponse = {
+    jobId: job.id,
+    status: job.status,
+    progress: job.progress ?? undefined,
+  };
+  if (job.status === 'ready') {
+    response.title = job.title ?? undefined;
+    response.artist = job.artist ?? undefined;
+    response.durationSec = job.duration_sec ?? undefined;
+    response.fileSize = job.file_size ?? undefined;
+    response.format = job.format ?? undefined;
+  }
+  if (job.status === 'error') {
+    response.errorMessage = job.error_message ?? undefined;
+  }
+  return response;
+}
+
 export async function audioRoutes(app: FastifyInstance) {
-  app.post<{ Body: RequestAudioBody }>('/request', async (request: FastifyRequest<{ Body: RequestAudioBody }>, reply: FastifyReply) => {
+  app.post<{ Body: RequestAudioBody }>('/request', { preHandler: [app.authenticate] }, async (request: FastifyRequest<{ Body: RequestAudioBody }>, reply: FastifyReply) => {
     const { videoId } = requestBodySchema.parse(request.body);
+    const userId = request.user!.userId;
 
-    const cachedJob = repository.findLatestReadyByVideoId(videoId);
+    const readyJob = await repository.findLatestReadyByVideoId(videoId);
 
-    if (cachedJob && cachedJob.file_path && existsSync(cachedJob.file_path)) {
+    if (readyJob) {
+      if (readyJob.file_path && existsSync(readyJob.file_path)) {
+        const response: RequestAudioResponse = {
+          jobId: readyJob.id,
+          status: 'ready',
+          videoId,
+          title: readyJob.title ?? undefined,
+          artist: readyJob.artist ?? undefined,
+          durationSec: readyJob.duration_sec ?? undefined,
+          fileSize: readyJob.file_size ?? undefined,
+          format: readyJob.format ?? undefined,
+        };
+        return reply.status(200).send(response);
+      }
+
+      const now = Date.now();
+      await repository.updateStatus(readyJob.id, 'queued', {
+        progress: null,
+        file_path: null,
+        file_size: null,
+        format: null,
+        error_message: null,
+        expires_at: now + config.fileTtlMs,
+      });
+
+      const queue = getAudioQueue();
+      await queue.add('extract', { videoId, jobId: readyJob.id });
+
       const response: RequestAudioResponse = {
-        jobId: cachedJob.id,
-        status: 'ready',
+        jobId: readyJob.id,
+        status: 'queued',
         videoId,
-        title: cachedJob.title ?? undefined,
-        artist: cachedJob.artist ?? undefined,
-        durationSec: cachedJob.duration_sec ?? undefined,
-        fileSize: cachedJob.file_size ?? undefined,
-        format: cachedJob.format ?? undefined,
       };
-      return reply.status(200).send(response);
+      return reply.status(202).send(response);
     }
 
-    const inFlightJob = repository.findLatestInFlightByVideoId(videoId);
+    const inFlightJob = await repository.findLatestInFlightByVideoId(videoId);
     if (inFlightJob) {
       const response: RequestAudioResponse = {
         jobId: inFlightJob.id,
@@ -50,6 +92,7 @@ export async function audioRoutes(app: FastifyInstance) {
     const job: AudioJob = {
       id: jobId,
       video_id: videoId,
+      user_id: userId,
       status: 'queued',
       file_path: null,
       file_size: null,
@@ -64,7 +107,7 @@ export async function audioRoutes(app: FastifyInstance) {
       expires_at: now + config.fileTtlMs,
     };
 
-    repository.createJob(job);
+    await repository.createJob(job);
 
     const queue = getAudioQueue();
     await queue.add('extract', { videoId, jobId });
@@ -78,10 +121,10 @@ export async function audioRoutes(app: FastifyInstance) {
     return reply.status(202).send(response);
   });
 
-  app.get<{ Params: { jobId: string } }>('/status/:jobId', async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { jobId: string } }>('/status/:jobId', { preHandler: [app.authenticate] }, async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
     const { jobId } = request.params;
 
-    const job = repository.findByJobId(jobId);
+    const job = await repository.findByJobId(jobId);
 
     if (!job) {
       return reply.status(404).send({
@@ -112,7 +155,70 @@ export async function audioRoutes(app: FastifyInstance) {
     return reply.send(response);
   });
 
-  app.get<{ Params: { videoId: string } }>('/file/:videoId', async (request: FastifyRequest<{ Params: { videoId: string } }>, reply: FastifyReply) => {
+  app.get<{ Params: { jobId: string } }>('/status/:jobId/stream', { preHandler: [app.authenticate] }, async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
+    const { jobId } = request.params;
+
+    const initialJob = await repository.findByJobId(jobId);
+    if (!initialJob) {
+      return reply.status(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: 'Job not found',
+      });
+    }
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    let lastStatus = '';
+    let lastProgress: number | undefined;
+
+    const sendEvent = (event: string, data: unknown) => {
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const poll = async () => {
+      try {
+        const job = await repository.findByJobId(jobId);
+        if (!job) {
+          sendEvent('error', { message: 'Job not found' });
+          cleanup();
+          return;
+        }
+
+        const changed = job.status !== lastStatus || job.progress !== lastProgress;
+        lastStatus = job.status;
+        lastProgress = job.progress ?? undefined;
+
+        if (changed) {
+          sendEvent('status', formatStatusResponse(job));
+        }
+
+        if (job.status === 'ready' || job.status === 'error') {
+          cleanup();
+        }
+      } catch (err) {
+        console.error(`[SSE] Poll error for job ${jobId}:`, err);
+      }
+    };
+
+    const interval = setInterval(poll, 2000);
+
+    const cleanup = () => {
+      clearInterval(interval);
+      reply.raw.end();
+    };
+
+    request.raw.on('close', cleanup);
+
+    poll();
+  });
+
+  app.get<{ Params: { videoId: string } }>('/file/:videoId', { preHandler: [app.authenticate] }, async (request: FastifyRequest<{ Params: { videoId: string } }>, reply: FastifyReply) => {
     const { videoId } = request.params;
 
     if (!videoIdRegex.test(videoId)) {
@@ -123,7 +229,7 @@ export async function audioRoutes(app: FastifyInstance) {
       });
     }
 
-    const job = repository.findLatestReadyByVideoId(videoId);
+    const job = await repository.findLatestReadyByVideoId(videoId);
 
     if (!job) {
       return reply.status(404).send({

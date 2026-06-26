@@ -5,6 +5,7 @@ import 'package:just_audio_background/just_audio_background.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_player_service.dart';
+import '../../../history/domain/repositories/history_repository.dart';
 
 class MusicPlayerState {
   final bool isPlaying;
@@ -110,14 +111,34 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   }
 
   void _initStreams() {
+    bool wasCompleted = false;
+    bool wasPlaying = false;
+
     _subscriptions.addAll([
       _service.playerStateStream.listen((playerState) {
+        final bool nowCompleted =
+            playerState.processingState == ProcessingState.completed;
+        final bool nowPlaying = playerState.playing;
+
+        if (wasPlaying &&
+            !nowPlaying &&
+            playerState.processingState == ProcessingState.idle &&
+            state.hasNext) {
+          _autoSkipToNext();
+        }
+
+        if (nowCompleted && !wasCompleted && state.currentSong != null) {
+          _recordPlay(state.currentSong!);
+        }
+        wasCompleted = nowCompleted;
+        wasPlaying = nowPlaying;
+
         state = state.copyWith(
-          isPlaying: playerState.playing,
+          isPlaying: nowPlaying,
           isBuffering:
               playerState.processingState == ProcessingState.buffering ||
                   playerState.processingState == ProcessingState.loading,
-          isCompleted: playerState.processingState == ProcessingState.completed,
+          isCompleted: nowCompleted,
           errorMessage: null,
         );
       }),
@@ -201,9 +222,17 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
       errorMessage: null,
     );
 
-    await _service.setAudioSource(concatenated);
-    await _service.skipToQueueItem(startIndex);
-    await _service.play();
+    try {
+      await _service.setAudioSource(concatenated);
+      await _service.skipToQueueItem(startIndex);
+      await _service.play();
+    } catch (e) {
+      if (startIndex < songs.length - 1) {
+        await playQueue(songs, startIndex: startIndex + 1);
+      } else {
+        state = state.copyWith(errorMessage: 'Playback failed: $e');
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -240,6 +269,28 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
       state = const MusicPlayerState();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
+    }
+  }
+
+  void _recordPlay(Song song) {
+    try {
+      final historyRepo = sl<HistoryRepository>();
+      historyRepo.recordPlay(
+        songId: song.id,
+        title: song.title,
+        artist: song.artist,
+        filePath: song.filePath,
+        durationSec: song.duration.inSeconds,
+        playedAt: DateTime.now().millisecondsSinceEpoch,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _autoSkipToNext() async {
+    await _service.reset();
+    if (state.currentIndex != null && state.currentIndex! < state.songs.length - 1) {
+      final nextIndex = state.currentIndex! + 1;
+      await playQueue(state.songs, startIndex: nextIndex);
     }
   }
 

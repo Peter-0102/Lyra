@@ -27,6 +27,9 @@ dependencies:
   # Disk Space
   disk_usage: ^1.0.0
 
+  # Secure Storage (tokens)
+  flutter_secure_storage: ^9.2.2
+
   # Local Database
   sqflite: ^2.3.0
 
@@ -36,6 +39,13 @@ dependencies:
   # Platform & Hardware Integration
   permission_handler: ^11.3.1
 
+  # Navigation
+  go_router: ^14.8.0
+
+  # Code Generation
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.9.0
+
   # UI / UX Utilities
   shimmer: ^3.0.0
   flutter_svg: ^2.0.10+1
@@ -44,6 +54,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  build_runner: ^2.4.9
+  freezed: ^2.5.2
+  json_serializable: ^6.8.0
 
 flutter:
   uses-material-design: true

@@ -13,8 +13,11 @@ interface ExtractionData {
   jobId: string;
 }
 
+const MAX_RETRIES = 3;
+
 async function processJob(job: Job<ExtractionData>) {
   const { videoId, jobId } = job.data;
+  const attempts = job.attemptsMade || 0;
 
   await repository.updateStatus(jobId, 'processing');
 
@@ -26,25 +29,37 @@ async function processJob(job: Job<ExtractionData>) {
   let stdout: string;
   let stderr: string;
 
+  const timeoutMs = config.ytdlpTimeoutMs + (attempts * 60 * 1000);
+
   try {
     const result = await runYtDlp(args, {
-      onProgress: (pct) => {
+      onProgress: (pct: number) => {
         job.updateProgress?.(pct / 100);
-        repository.updateStatus(jobId, 'processing', { progress: pct / 100 });
+        repository.updateStatus(jobId, 'processing', { progress: pct / 100 }).catch((err) => {
+          console.warn(`Failed to update progress for job ${jobId}:`, err);
+        });
       },
-      timeoutMs: 5 * 60 * 1000,
+      timeoutMs,
     });
-    
+
     exitCode = result.exitCode;
     stdout = result.stdout;
     stderr = result.stderr;
-    console.log(`[WORKER] yt-dlp finished. exitCode=${exitCode}`);
+    console.log(`[WORKER] yt-dlp finished. exitCode=${exitCode} (attempt ${attempts + 1}/${MAX_RETRIES + 1})`);
     console.log(`[WORKER] Full stdout: ${stdout}`);
     console.log(`[WORKER] Full stderr: ${stderr}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`[WORKER] yt-dlp failed on attempt ${attempts + 1}: ${message}`);
+
+    if (attempts < MAX_RETRIES) {
+      const backoffDelay = Math.pow(2, attempts) * 10000;
+      console.log(`[WORKER] Retrying job ${jobId} in ${backoffDelay}ms (attempt ${attempts + 1}/${MAX_RETRIES})`);
+      throw err;
+    }
+
     await repository.updateStatus(jobId, 'error', {
-      error_message: message,
+      error_message: `Failed after ${MAX_RETRIES + 1} attempts: ${message}`,
     });
     throw err;
   }
@@ -52,9 +67,16 @@ async function processJob(job: Job<ExtractionData>) {
   if (exitCode !== 0) {
     console.error(`[WORKER] yt-dlp exited with error code ${exitCode}`);
     console.error(`[WORKER] stderr: ${stderr}`);
+
+    if (attempts < MAX_RETRIES) {
+      const backoffDelay = Math.pow(2, attempts) * 10000;
+      console.log(`[WORKER] Retrying job ${jobId} in ${backoffDelay}ms (attempt ${attempts + 1}/${MAX_RETRIES})`);
+      throw new Error(stderr);
+    }
+
     const errorMessage = parseYtDlpError(stderr);
     await repository.updateStatus(jobId, 'error', {
-      error_message: errorMessage,
+      error_message: `Failed after ${MAX_RETRIES + 1} attempts: ${errorMessage}`,
     });
     throw new Error(stderr);
   }
@@ -62,21 +84,22 @@ async function processJob(job: Job<ExtractionData>) {
   const jsonStart = stdout.indexOf('{');
   const jsonEnd = stdout.lastIndexOf('}');
   if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+    if (attempts < MAX_RETRIES) {
+      const backoffDelay = Math.pow(2, attempts) * 10000;
+      console.log(`[WORKER] No JSON output, retrying in ${backoffDelay}ms`);
+      throw new Error('No valid JSON output from yt-dlp');
+    }
     await repository.updateStatus(jobId, 'error', {
-      error_message: 'No valid JSON output from yt-dlp',
+      error_message: 'No valid JSON output from yt-dlp after all retries',
     });
     throw new Error('No valid JSON output from yt-dlp');
   }
   const metadata = JSON.parse(stdout.substring(jsonStart, jsonEnd + 1));
   console.log(`[WORKER] Parsed metadata from YouTube:`);
   console.log(`  title: ${metadata.title}`);
-  console.log(`  artist: ${metadata.artist}`);
   console.log(`  uploader: ${metadata.uploader}`);
-  console.log(`  channel: ${metadata.channel}`);
   console.log(`  duration: ${metadata.duration}`);
   console.log(`  ext: ${metadata.ext}`);
-  console.log(`  format: ${metadata.format}`);
-  console.log(`  webpage_url: ${metadata.webpage_url}`);
 
   const ext = (metadata.ext as string) || 'm4a';
   const filePath = join(config.audioDir, `${videoId}_${jobId}.${ext}`);
@@ -107,7 +130,7 @@ async function main() {
     {
       connection: getRedisConnection() as any,
       concurrency: 2,
-      lockDuration: 5 * 60 * 1000,
+      lockDuration: config.ytdlpTimeoutMs + 60000,
     }
   );
 

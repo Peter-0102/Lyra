@@ -1,64 +1,42 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../audio_player/domain/entities/song.dart';
 
-class Playlist {
-  final String id;
-  final String name;
-  final String? description;
-  final List<Song> songs;
-  final DateTime createdAt;
-  final DateTime updatedAt;
+part 'playlist.freezed.dart';
+part 'playlist.g.dart';
 
-  const Playlist({
-    required this.id,
-    required this.name,
-    this.description,
-    this.songs = const [],
-    required this.createdAt,
-    required this.updatedAt,
-  });
+class _DateTimeConverter implements JsonConverter<DateTime, Object> {
+  const _DateTimeConverter();
 
-  Playlist copyWith({
-    String? id,
-    String? name,
+  @override
+  DateTime fromJson(Object json) {
+    if (json is String) {
+      final parsed = DateTime.tryParse(json);
+      if (parsed != null) return parsed;
+    }
+    if (json is int) return DateTime.fromMillisecondsSinceEpoch(json);
+    if (json is double) return DateTime.fromMillisecondsSinceEpoch(json.toInt());
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  @override
+  Object toJson(DateTime object) => object.millisecondsSinceEpoch;
+}
+
+@freezed
+class Playlist with _$Playlist {
+  const factory Playlist({
+    required String id,
+    required String name,
     String? description,
-    List<Song>? songs,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Playlist(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      songs: songs ?? this.songs,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
+    @Default([]) List<Song> songs,
+    @_DateTimeConverter() required DateTime createdAt,
+    @_DateTimeConverter() required DateTime updatedAt,
+  }) = _Playlist;
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'description': description,
-      'songs': songs.map((s) => s.toJson()).toList(),
-      'createdAt': createdAt.millisecondsSinceEpoch,
-      'updatedAt': updatedAt.millisecondsSinceEpoch,
-    };
-  }
+  factory Playlist.fromJson(Map<String, dynamic> json) =>
+      _$PlaylistFromJson(json);
 
-  factory Playlist.fromJson(Map<String, dynamic> json) {
-    return Playlist(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      description: json['description'] as String?,
-      songs: (json['songs'] as List<dynamic>?)
-              ?.map((s) => Song.fromJson(s as Map<String, dynamic>))
-              .toList() ??
-          [],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int),
-      updatedAt: DateTime.fromMillisecondsSinceEpoch(json['updatedAt'] as int),
-    );
-  }
+  const Playlist._();
 
   Duration get totalDuration {
     if (songs.isEmpty) return Duration.zero;

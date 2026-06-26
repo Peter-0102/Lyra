@@ -1,39 +1,63 @@
-class Song {
-  final String id;
-  final String title;
-  final String artist;
-  final String filePath;
-  final Duration duration;
-  final String? thumbnailUrl;
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-  const Song({
-    required this.id,
-    required this.title,
-    required this.artist,
-    required this.filePath,
-    required this.duration,
-    this.thumbnailUrl,
-  });
+part 'song.freezed.dart';
+part 'song.g.dart';
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'title': title,
-      'artist': artist,
-      'filePath': filePath,
-      'duration': duration.inMilliseconds,
-      'thumbnailUrl': thumbnailUrl,
-    };
+class DurationMillisConverter implements JsonConverter<Duration, Object> {
+  const DurationMillisConverter();
+
+  @override
+  Duration fromJson(Object json) {
+    if (json is int) return Duration(milliseconds: json);
+    if (json is double) return Duration(milliseconds: json.toInt());
+    if (json is String) {
+      final parsed = int.tryParse(json);
+      if (parsed != null) return Duration(milliseconds: parsed);
+    }
+    return Duration.zero;
   }
 
-  factory Song.fromJson(Map<String, dynamic> json) {
-    return Song(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
-      filePath: json['filePath'] as String,
-      duration: Duration(milliseconds: json['duration'] as int),
-      thumbnailUrl: json['thumbnailUrl'] as String?,
-    );
+  @override
+  Object toJson(Duration object) => object.inMilliseconds;
+}
+
+String _stableHash(String s) {
+  int hash = 0;
+  for (var i = 0; i < s.length; i++) {
+    hash = 31 * hash + s.codeUnitAt(i);
   }
+  return hash.toString();
+}
+
+String stableIdFromFileName(String fileName) {
+  final firstPart = fileName.split('_').first;
+  if (firstPart.length == 11 &&
+      RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(firstPart)) {
+    return firstPart;
+  }
+  return _stableHash(fileName);
+}
+
+String? extractVideoIdFromFileName(String fileName) {
+  final firstPart = fileName.split('_').first;
+  if (firstPart.length == 11 &&
+      RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(firstPart)) {
+    return firstPart;
+  }
+  return null;
+}
+
+@freezed
+class Song with _$Song {
+  const factory Song({
+    required String id,
+    required String title,
+    required String artist,
+    required String filePath,
+    @DurationMillisConverter() required Duration duration,
+    String? thumbnailUrl,
+    String? videoId,
+  }) = _Song;
+
+  factory Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
 }

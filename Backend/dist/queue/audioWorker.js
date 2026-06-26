@@ -19,7 +19,9 @@ async function processJob(job) {
         const result = await runYtDlp(args, {
             onProgress: (pct) => {
                 job.updateProgress?.(pct / 100);
-                repository.updateStatus(jobId, 'processing', { progress: pct / 100 });
+                repository.updateStatus(jobId, 'processing', { progress: pct / 100 }).catch((err) => {
+                    console.warn(`Failed to update progress for job ${jobId}:`, err);
+                });
             },
             timeoutMs: 5 * 60 * 1000,
         });

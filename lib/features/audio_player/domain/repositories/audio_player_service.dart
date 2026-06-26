@@ -140,6 +140,11 @@ abstract class AudioPlayerService {
   // Lifecycle
   // ---------------------------------------------------------------------------
 
+  /// Resets the player to a clean state: stops playback, clears queue,
+  /// and reinitializes internal resources. Safe to call after a corrupt
+  /// file or any unrecoverable error.
+  Future<void> reset();
+
   /// Releases all native resources. Call when the service is no longer needed.
   Future<void> dispose();
 }

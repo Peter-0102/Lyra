@@ -11,10 +11,10 @@ export function getAudioQueue(): Queue {
     audioQueue = new Queue(AUDIO_QUEUE_NAME, {
       connection: getRedisConnection() as any,
       defaultJobOptions: {
-        attempts: 2,
+        attempts: 4,
         backoff: {
           type: 'exponential',
-          delay: 5000,
+          delay: 10000,
         },
         removeOnComplete: {
           age: 24 * 3600,

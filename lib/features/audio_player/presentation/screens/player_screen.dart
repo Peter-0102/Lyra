@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../providers/player_provider.dart';
-import 'queue_screen.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({super.key});
@@ -139,13 +139,7 @@ class _TopBar extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.queue_music_rounded,
                 color: AppColors.textSecondaryDark, size: 22),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const QueueScreen(),
-                ),
-              );
-            },
+            onPressed: () => context.push('/queue'),
           ),
         ],
       ),

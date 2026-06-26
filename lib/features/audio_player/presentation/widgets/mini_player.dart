@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../domain/entities/song.dart';
 import '../providers/player_provider.dart';
-import '../screens/player_screen.dart';
 
 class MiniPlayer extends ConsumerWidget {
   const MiniPlayer({super.key});
@@ -16,25 +16,7 @@ class MiniPlayer extends ConsumerWidget {
     if (!playerState.hasTrack) return const SizedBox.shrink();
 
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          PageRouteBuilder(
-          pageBuilder: (context, route, child) => const PlayerScreen(),
-          transitionsBuilder: (context, animation, route, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOutCubic,
-                )),
-                child: child,
-              );
-            },
-          ),
-        );
-      },
+      onTap: () => context.push('/player'),
       child: Container(
         height: 64,
         decoration: BoxDecoration(
