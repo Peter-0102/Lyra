@@ -130,6 +130,13 @@ class DownloadServiceImpl implements DownloadService {
         if (e.type == DioExceptionType.cancel) {
           throw const StorageFailure('Download cancelled by user.');
         }
+        if (e.response?.statusCode == 401) {
+          throw const NetworkFailure('Session expired. Please sign in again.');
+        }
+        if (e.response?.statusCode == 503) {
+          final message = e.response?.data?['message'] ?? 'Server is busy. Please try again later.';
+          throw NetworkFailure(message);
+        }
         if (e.response?.statusCode == 422) {
           final message = e.response?.data?['message'] ?? 'Video unavailable';
           throw YouTubeFailure(message);

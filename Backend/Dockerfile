@@ -9,11 +9,15 @@ RUN npx tsc && mkdir -p dist/db/migrations && cp src/db/migrations/*.sql dist/db
 
 FROM node:20-bookworm-slim
 
-ARG YTDLP_VERSION=2026.06.20
+ARG YTDLP_VERSION=
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip ffmpeg curl ca-certificates cron \
-    && pip3 install --no-cache-dir --break-system-packages "yt-dlp==${YTDLP_VERSION}" \
+    && if [ -n "$YTDLP_VERSION" ]; then \
+        pip3 install --no-cache-dir --break-system-packages "yt-dlp==${YTDLP_VERSION}"; \
+    else \
+        pip3 install --no-cache-dir --break-system-packages yt-dlp; \
+    fi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/update-ytdlp.sh /usr/local/bin/update-ytdlp.sh
@@ -33,10 +37,5 @@ COPY --from=build /app/package.json ./
 RUN mkdir -p /data/audio
 
 VOLUME ["/data"]
-
-EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-  CMD curl -f http://localhost:3000/api/health || exit 1
 
 CMD ["node", "dist/server.js"]

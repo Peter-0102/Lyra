@@ -5,8 +5,6 @@ services:
       POSTGRES_USER: mispoti
       POSTGRES_PASSWORD: mispoti
       POSTGRES_DB: mispoti
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,7 +29,7 @@ services:
       - FILE_TTL_HOURS=168
       - RATE_LIMIT_MAX=10
       - CORS_ORIGIN=*
-      - JWT_SECRET=dev-secret-change-in-production
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - JWT_EXPIRES_IN=15m
       - REFRESH_TOKEN_EXPIRES_IN=7d
     depends_on:
@@ -50,6 +48,8 @@ services:
   worker:
     build: .
     command: ["node", "dist/queue/audioWorker.js"]
+    healthcheck:
+      disable: true
     volumes:
       - audio_data:/data
     environment:

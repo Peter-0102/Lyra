@@ -65,8 +65,14 @@ export async function audioRoutes(app: FastifyInstance) {
         expires_at: now + config.fileTtlMs,
       });
 
-      const queue = getAudioQueue();
-      await queue.add('extract', { videoId, jobId: readyJob.id });
+      const enqueued = await enqueueJob(videoId, readyJob.id);
+      if (!enqueued) {
+        return reply.status(503).send({
+          statusCode: 503,
+          error: 'Service Unavailable',
+          message: 'Extraction service is not available. Please try again later.',
+        });
+      }
 
       const response: RequestAudioResponse = {
         jobId: readyJob.id,
@@ -109,8 +115,17 @@ export async function audioRoutes(app: FastifyInstance) {
 
     await repository.createJob(job);
 
-    const queue = getAudioQueue();
-    await queue.add('extract', { videoId, jobId });
+    const enqueued = await enqueueJob(videoId, jobId);
+    if (!enqueued) {
+      await repository.updateStatus(jobId, 'error', {
+        error_message: 'Extraction service unavailable',
+      });
+      return reply.status(503).send({
+        statusCode: 503,
+        error: 'Service Unavailable',
+        message: 'Extraction service is not available. Please try again later.',
+      });
+    }
 
     const response: RequestAudioResponse = {
       jobId,
@@ -120,6 +135,17 @@ export async function audioRoutes(app: FastifyInstance) {
 
     return reply.status(202).send(response);
   });
+
+async function enqueueJob(videoId: string, jobId: string): Promise<boolean> {
+  try {
+    const queue = getAudioQueue();
+    await queue.add('extract', { videoId, jobId });
+    return true;
+  } catch (err) {
+    console.error(`[Audio] Failed to enqueue job ${jobId} for video ${videoId}:`, err);
+    return false;
+  }
+}
 
   app.get<{ Params: { jobId: string } }>('/status/:jobId', { preHandler: [app.authenticate] }, async (request: FastifyRequest<{ Params: { jobId: string } }>, reply: FastifyReply) => {
     const { jobId } = request.params;
