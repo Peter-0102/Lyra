@@ -30,6 +30,9 @@ dependencies:
   # Secure Storage (tokens)
   flutter_secure_storage: ^9.2.2
 
+  # Local preferences (guest mode, onboarding)
+  shared_preferences: ^2.2.2
+
   # Local Database
   sqflite: ^2.3.0
 

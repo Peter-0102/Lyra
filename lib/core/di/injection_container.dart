@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../db/database_helper.dart';
 import '../../features/auth/domain/repositories/auth_repository.dart';
@@ -85,6 +86,9 @@ Future<void> initDI() async {
 
   final secureStorage = const FlutterSecureStorage();
   sl.registerLazySingleton<FlutterSecureStorage>(() => secureStorage);
+
+  final prefs = await SharedPreferences.getInstance();
+  sl.registerLazySingleton<SharedPreferences>(() => prefs);
 
   sl.registerLazySingleton<AuthLocalDataSource>(
     () => AuthLocalDataSource(secureStorage),

@@ -33,7 +33,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (success && mounted) {
-      Navigator.of(context).pop();
+      context.go('/');
     }
   }
 

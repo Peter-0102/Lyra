@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../auth/presentation/widgets/auth_banner.dart';
 import '../../../audio_player/presentation/widgets/mini_player.dart';
 import '../../../playlists/presentation/screens/playlist_list_screen.dart';
 import '../../../favorites/presentation/screens/favorites_screen.dart';
@@ -20,11 +21,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
+  bool _dismissedBanner = false;
 
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const _LibraryTab(),
+      _LibraryTab(
+        showBanner: !_dismissedBanner,
+        onDismissBanner: () => setState(() => _dismissedBanner = true),
+      ),
       const SearchScreen(),
       const FavoritesScreen(),
       const PlaylistListScreen(),
@@ -103,11 +108,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _LibraryTab extends ConsumerWidget {
-  const _LibraryTab();
+  final bool showBanner;
+  final VoidCallback? onDismissBanner;
+
+  const _LibraryTab({
+    this.showBanner = false,
+    this.onDismissBanner,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final libraryState = ref.watch(libraryProvider);
+    final authState = ref.watch(authProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,6 +147,14 @@ class _LibraryTab extends ConsumerWidget {
             ),
           ),
         ),
+        // Guest banner
+        if (authState.isGuest && showBanner)
+          AuthBanner(
+            message: 'Sign in to save your preferences and sync across devices.',
+            actionLabel: 'Sign In',
+            onAction: () => context.push('/login'),
+            onDismiss: onDismissBanner,
+          ),
         // Refresh button
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -176,12 +196,18 @@ class _LibraryTab extends ConsumerWidget {
                 icon: Icon(
                   ref.watch(authProvider).isAuthenticated
                       ? Icons.settings_rounded
-                      : Icons.login_rounded,
+                      : Icons.person_rounded,
                   color: AppColors.textSecondaryDark,
                 ),
                 onPressed: () {
-                  final isAuth = ref.read(authProvider).isAuthenticated;
-                  context.push(isAuth ? '/settings' : '/login');
+                  final state = ref.read(authProvider);
+                  if (state.isAuthenticated) {
+                    context.push('/settings');
+                  } else if (state.isGuest) {
+                    context.push('/settings');
+                  } else {
+                    context.push('/login');
+                  }
                 },
               ),
             ],

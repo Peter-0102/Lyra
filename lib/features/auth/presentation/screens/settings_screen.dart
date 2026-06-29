@@ -17,43 +17,7 @@ class SettingsScreen extends ConsumerWidget {
     final state = ref.watch(authProvider);
 
     if (!state.isAuthenticated) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.account_circle_rounded,
-                color: AppColors.textSecondaryDark, size: 64),
-            const SizedBox(height: 16),
-            const Text(
-              'Not signed in',
-              style: TextStyle(
-                color: AppColors.textSecondaryDark,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Sign in to sync your data\nacross devices',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.textSecondaryDark,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => context.push('/login'),
-              icon: const Icon(Icons.login_rounded, size: 18),
-              label: const Text('Sign In'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
-              ),
-            ),
-          ],
-        ),
-      );
+      return _GuestView();
     }
 
     return ListView(
@@ -202,6 +166,190 @@ class SettingsScreen extends ConsumerWidget {
     if (confirm == true) {
       await ref.read(authProvider.notifier).logout();
     }
+  }
+}
+
+class _GuestView extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 80),
+      children: [
+        const SizedBox(height: 48),
+        Center(
+          child: Icon(
+            Icons.person_outline_rounded,
+            color: AppColors.textSecondaryDark,
+            size: 80,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'You\'re using Mispoti as a Guest',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.textPrimaryDark,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 40),
+          child: Text(
+            'Create an account to save your library, sync across devices, and unlock personalized features.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondaryDark,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () => context.push('/register'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Create Account',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton(
+              onPressed: () => context.push('/login'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimaryDark,
+                side: BorderSide(
+                  color: AppColors.textSecondaryDark.withAlpha(77),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(22),
+                ),
+              ),
+              child: const Text(
+                'Sign In',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 40),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'What you\'re missing',
+            style: TextStyle(
+              color: AppColors.textSecondaryDark,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const _GuestFeatureTile(
+          icon: Icons.cloud_done_rounded,
+          title: 'Cloud Sync',
+          subtitle: 'Your library saved and accessible anywhere',
+        ),
+        const _GuestFeatureTile(
+          icon: Icons.history_rounded,
+          title: 'Listening History',
+          subtitle: 'See what you\'ve played across devices',
+        ),
+        const _GuestFeatureTile(
+          icon: Icons.settings_rounded,
+          title: 'Personalized Experience',
+          subtitle: 'Preferences and recommendations tailored to you',
+        ),
+        const _GuestFeatureTile(
+          icon: Icons.rocket_launch_rounded,
+          title: 'Future Features',
+          subtitle: 'Get early access to new capabilities',
+        ),
+      ],
+    );
+  }
+}
+
+class _GuestFeatureTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _GuestFeatureTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Material(
+        color: AppColors.cardDark,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.primary, size: 24),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimaryDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondaryDark,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

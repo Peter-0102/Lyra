@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
@@ -16,15 +18,22 @@ void main() async {
 
   await initDI();
 
+  final prefs = await SharedPreferences.getInstance();
+  final hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
+  final isGuest = prefs.getBool('is_guest') ?? false;
+  final showWelcome = !hasSeenWelcome && !isGuest;
+
   runApp(
-    const ProviderScope(
-      child: MainApp(),
+    ProviderScope(
+      child: MainApp(router: createRouter(showWelcome: showWelcome)),
     ),
   );
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+  final GoRouter router;
+
+  const MainApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +43,7 @@ class MainApp extends StatelessWidget {
       theme: AppTheme.darkTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.dark,
-      routerConfig: appRouter,
+      routerConfig: router,
     );
   }
 }

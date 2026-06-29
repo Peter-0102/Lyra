@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -10,12 +11,14 @@ class AuthState {
   final User? user;
   final bool isLoading;
   final bool isAuthenticated;
+  final bool isGuest;
   final String? error;
 
   const AuthState({
     this.user,
     this.isLoading = false,
     this.isAuthenticated = false,
+    this.isGuest = false,
     this.error,
   });
 
@@ -23,12 +26,14 @@ class AuthState {
     User? user,
     bool? isLoading,
     bool? isAuthenticated,
+    bool? isGuest,
     String? error,
   }) {
     return AuthState(
       user: user ?? this.user,
       isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
+      isGuest: isGuest ?? this.isGuest,
       error: error,
     );
   }
@@ -52,7 +57,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
         );
       } else {
-        state = const AuthState(isLoading: false);
+        final prefs = sl<SharedPreferences>();
+        final isGuest = prefs.getBool('is_guest') ?? false;
+        state = AuthState(isLoading: false, isGuest: isGuest);
       }
     } catch (e) {
       print('[Auth] _init error: $e');
@@ -60,10 +67,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> continueAsGuest() async {
+    final prefs = sl<SharedPreferences>();
+    await prefs.setBool('is_guest', true);
+    await prefs.setBool('has_seen_welcome', true);
+    state = const AuthState(isGuest: true);
+  }
+
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final user = await _repository.login(email, password);
+      await _clearGuestFlags();
       state = AuthState(user: user, isAuthenticated: true, isLoading: false);
       _migrateLocalData();
       return true;
@@ -82,6 +97,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final user = await _repository.register(email, password, username);
+      await _clearGuestFlags();
       state = AuthState(user: user, isAuthenticated: true, isLoading: false);
       _migrateLocalData();
       return true;
@@ -94,6 +110,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       return false;
     }
+  }
+
+  Future<void> _clearGuestFlags() async {
+    final prefs = sl<SharedPreferences>();
+    await prefs.setBool('is_guest', false);
+    await prefs.setBool('has_seen_welcome', true);
   }
 
   String _parseAuthError(Object error) {
@@ -151,7 +173,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repository.logout();
-    state = const AuthState();
+    final prefs = sl<SharedPreferences>();
+    await prefs.setBool('is_guest', true);
+    state = const AuthState(isGuest: true);
   }
 
   void clearError() {

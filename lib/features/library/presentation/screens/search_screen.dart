@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../download/domain/utils/duplicate_detector.dart';
 import '../../../download/presentation/providers/download_provider.dart';
 import '../providers/library_provider.dart';
@@ -379,6 +381,7 @@ class _DownloadButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final downloadState = ref.watch(downloadProvider);
+    final authState = ref.watch(authProvider);
     final videoId = video.id.toString();
     final isDownloading = downloadState.activeDownloads.containsKey(videoId);
     final activeItem = downloadState.activeDownloads[videoId];
@@ -465,6 +468,11 @@ class _DownloadButton extends ConsumerWidget {
       icon: const Icon(Icons.download_rounded,
           color: AppColors.textSecondaryDark, size: 26),
       onPressed: () async {
+        if (!authState.isAuthenticated) {
+          _showAuthRequiredDialog(context);
+          return;
+        }
+
         final libraryState = ref.read(libraryProvider);
         final duplicates = findDuplicateSongs(
           libraryState.songs,
@@ -574,4 +582,87 @@ class _DownloadButton extends ConsumerWidget {
       },
     );
   }
+}
+
+void _showAuthRequiredDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppColors.cardDark,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.download_rounded,
+            color: AppColors.primary,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Sign in to download songs',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textPrimaryDark,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Downloads require an authenticated account. Create one to start building your offline library.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.textSecondaryDark,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                context.push('/register');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Create Account',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.push('/login');
+            },
+            child: Text(
+              'I already have an account',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
