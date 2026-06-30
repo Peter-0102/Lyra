@@ -12,4 +12,6 @@ abstract class AuthRepository {
   Future<void> syncPlaylists(List<Map<String, dynamic>> playlists);
   Future<Map<String, dynamic>> getSettings();
   Future<void> updateSettings(Map<String, dynamic> settings);
+  Future<void> forgotPassword(String email);
+  Future<void> resetPassword(String code, String newPassword);
 }

@@ -4,7 +4,7 @@ import rateLimit from '@fastify/rate-limit';
 import cron from 'node-cron';
 import { config } from './config.js';
 import { initializeDatabase, closeDatabase } from './db/client.js';
-import { deleteExpiredRefreshTokens } from './db/auth.repository.js';
+import { deleteExpiredRefreshTokens, deleteExpiredResetTokens } from './db/auth.repository.js';
 import { audioRoutes } from './routes/audio.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
 import { healthRoutes } from './routes/health.routes.js';
@@ -66,6 +66,9 @@ async function main() {
   cron.schedule('0 */6 * * *', () => {
     deleteExpiredRefreshTokens().catch((err) => {
       console.error('Refresh token cleanup failed:', err);
+    });
+    deleteExpiredResetTokens().catch((err) => {
+      console.error('Reset token cleanup failed:', err);
     });
   });
 

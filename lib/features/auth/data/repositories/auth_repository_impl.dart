@@ -90,6 +90,16 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> forgotPassword(String email) async {
+    await _remote.forgotPassword(email);
+  }
+
+  @override
+  Future<void> resetPassword(String code, String newPassword) async {
+    await _remote.resetPassword(code, newPassword);
+  }
+
+  @override
   Future<void> syncFavorites(List<Map<String, dynamic>> favorites) async {
     await _remote.syncFavorites(favorites);
   }

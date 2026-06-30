@@ -171,6 +171,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<String?> forgotPassword(String email) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.forgotPassword(email);
+      state = state.copyWith(isLoading: false);
+      return null;
+    } catch (e) {
+      print('[Auth] ForgotPassword error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: _parseAuthError(e),
+      );
+      return _parseAuthError(e);
+    }
+  }
+
+  Future<String?> resetPassword(String code, String newPassword) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      await _repository.resetPassword(code, newPassword);
+      state = state.copyWith(isLoading: false);
+      return null;
+    } catch (e) {
+      print('[Auth] ResetPassword error: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: _parseAuthError(e),
+      );
+      return _parseAuthError(e);
+    }
+  }
+
   Future<void> logout() async {
     await _repository.logout();
     final prefs = sl<SharedPreferences>();

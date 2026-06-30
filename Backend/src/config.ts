@@ -15,6 +15,12 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default('15m'),
   REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
   YTDLP_TIMEOUT_MS: z.coerce.number().default(5 * 60 * 1000),
+  SMTP_HOST: z.string().default('smtp.gmail.com'),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  SMTP_FROM: z.string().default('Mispoti <noreply@mispoti.app>'),
+  RESET_TOKEN_EXPIRES_IN: z.string().default('15m'),
 });
 
 function parseMs(input: string): number {
@@ -49,6 +55,12 @@ function loadConfig() {
     jwtExpiresInSec: Math.floor(parseMs(env.JWT_EXPIRES_IN) / 1000),
     refreshTokenExpiresInMs: parseMs(env.REFRESH_TOKEN_EXPIRES_IN),
     ytdlpTimeoutMs: env.YTDLP_TIMEOUT_MS,
+    smtpHost: env.SMTP_HOST,
+    smtpPort: env.SMTP_PORT,
+    smtpUser: env.SMTP_USER,
+    smtpPass: env.SMTP_PASS,
+    smtpFrom: env.SMTP_FROM,
+    resetTokenExpiresInMs: parseMs(env.RESET_TOKEN_EXPIRES_IN),
   };
 }
 

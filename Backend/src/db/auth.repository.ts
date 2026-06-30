@@ -76,3 +76,39 @@ export async function deleteUserSetting(userId: string, key: string): Promise<vo
     [userId, key]
   );
 }
+
+export async function createPasswordResetToken(userId: string, tokenHash: string, expiresAt: number): Promise<void> {
+  const now = Date.now();
+  await query(
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, created_at)
+     VALUES ($1, $2, $3, $4)`,
+    [userId, tokenHash, expiresAt, now]
+  );
+}
+
+export async function findValidResetToken(tokenHash: string): Promise<{ id: string; user_id: string } | undefined> {
+  const result = await query(
+    'SELECT id, user_id FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > $2 AND used = FALSE',
+    [tokenHash, Date.now()]
+  );
+  return result.rows[0] as { id: string; user_id: string } | undefined;
+}
+
+export async function markResetTokenUsed(id: string): Promise<void> {
+  await query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [id]);
+}
+
+export async function updateUserPassword(userId: string, newHash: string): Promise<void> {
+  await query(
+    'UPDATE users SET password_hash = $1, updated_at = $2 WHERE id = $3',
+    [newHash, Date.now(), userId]
+  );
+}
+
+export async function deleteRefreshTokensByUserId(userId: string): Promise<void> {
+  await query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+}
+
+export async function deleteExpiredResetTokens(): Promise<void> {
+  await query('DELETE FROM password_reset_tokens WHERE expires_at <= $1', [Date.now()]);
+}

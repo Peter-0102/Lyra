@@ -32,6 +32,12 @@ services:
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - JWT_EXPIRES_IN=15m
       - REFRESH_TOKEN_EXPIRES_IN=7d
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM:-Mispoti <noreply@mispoti.app>}
+      - RESET_TOKEN_EXPIRES_IN=${RESET_TOKEN_EXPIRES_IN:-15m}
     depends_on:
       postgres:
         condition: service_healthy

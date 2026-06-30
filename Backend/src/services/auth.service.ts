@@ -42,3 +42,15 @@ export function generateTokens(userId: string, email: string): AuthTokens {
 export function getRefreshTokenExpiry(): number {
   return Date.now() + config.refreshTokenExpiresInMs;
 }
+
+export function generateResetCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+export function hashResetToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+export function getResetTokenExpiry(): number {
+  return Date.now() + config.resetTokenExpiresInMs;
+}

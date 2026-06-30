@@ -7,7 +7,12 @@ import {
   generateTokens,
   hashRefreshToken,
   getRefreshTokenExpiry,
+  generateResetCode,
+  hashResetToken,
+  getResetTokenExpiry,
 } from '../services/auth.service.js';
+import { sendPasswordResetEmail } from '../services/email.service.js';
+import ms, { type StringValue } from 'ms';
 import type {
   RegisterBody,
   LoginBody,
@@ -162,6 +167,58 @@ export async function authRoutes(app: FastifyInstance) {
         statusCode: 500,
         error: 'Internal Server Error',
         message: 'Session refresh failed. Please login again.',
+      });
+    }
+  });
+
+  app.post<{ Body: { email: string } }>('/forgot-password', async (request: FastifyRequest<{ Body: { email: string } }>, reply: FastifyReply) => {
+    const { email } = z.object({ email: emailSchema }).parse(request.body);
+
+    try {
+      const user = await authRepository.findUserByEmail(email);
+      if (user) {
+        const code = generateResetCode();
+        const tokenHash = hashResetToken(code);
+        const expiresAt = getResetTokenExpiry();
+        await authRepository.createPasswordResetToken(user.id, tokenHash, expiresAt);
+        await sendPasswordResetEmail(email, code);
+      }
+    } catch (err) {
+      request.log.error(err);
+    }
+
+    return reply.send({ message: 'If the email exists, a reset code has been sent.' });
+  });
+
+  app.post<{ Body: { code: string; password: string } }>('/reset-password', async (request: FastifyRequest<{ Body: { code: string; password: string } }>, reply: FastifyReply) => {
+    const { code, password } = z.object({
+      code: z.string().length(6, 'Reset code must be 6 digits'),
+      password: passwordSchema,
+    }).parse(request.body);
+
+    try {
+      const tokenHash = hashResetToken(code);
+      const stored = await authRepository.findValidResetToken(tokenHash);
+      if (!stored) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'Invalid or expired reset code',
+        });
+      }
+
+      const passwordHash = await hashPassword(password);
+      await authRepository.updateUserPassword(stored.user_id, passwordHash);
+      await authRepository.markResetTokenUsed(stored.id);
+      await authRepository.deleteRefreshTokensByUserId(stored.user_id);
+
+      return reply.send({ message: 'Password has been reset successfully.' });
+    } catch (err) {
+      request.log.error(err);
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'Password reset failed. Please try again.',
       });
     }
   });
