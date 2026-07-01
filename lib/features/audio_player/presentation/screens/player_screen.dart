@@ -75,11 +75,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _SecondaryControls(
               loopMode: state.loopMode,
               shuffleEnabled: state.shuffleModeEnabled,
-              volume: state.volume,
               speed: state.speed,
               onCycleLoop: () => notifier.cycleLoopMode(),
               onToggleShuffle: () => notifier.toggleShuffle(),
-              onSetVolume: (v) => notifier.setVolume(v),
               onSetSpeed: (s) => notifier.setSpeed(s),
             ),
             const SizedBox(height: 24),
@@ -410,21 +408,17 @@ class _MainControls extends StatelessWidget {
 class _SecondaryControls extends StatelessWidget {
   final LoopMode loopMode;
   final bool shuffleEnabled;
-  final double volume;
   final double speed;
   final VoidCallback onCycleLoop;
   final VoidCallback onToggleShuffle;
-  final ValueChanged<double> onSetVolume;
   final ValueChanged<double> onSetSpeed;
 
   const _SecondaryControls({
     required this.loopMode,
     required this.shuffleEnabled,
-    required this.volume,
     required this.speed,
     required this.onCycleLoop,
     required this.onToggleShuffle,
-    required this.onSetVolume,
     required this.onSetSpeed,
   });
 
@@ -454,19 +448,6 @@ class _SecondaryControls extends StatelessWidget {
             ),
             onPressed: onToggleShuffle,
           ),
-          // Volume
-          IconButton(
-            icon: Icon(
-              volume == 0
-                  ? Icons.volume_off_rounded
-                  : volume < 0.5
-                      ? Icons.volume_down_rounded
-                      : Icons.volume_up_rounded,
-              color: AppColors.textSecondaryDark,
-              size: 22,
-            ),
-            onPressed: () => _showVolumeSlider(context),
-          ),
           // Loop
           IconButton(
             icon: Icon(
@@ -493,36 +474,6 @@ class _SecondaryControls extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _showVolumeSlider(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.cardDark,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Volume',
-                style: TextStyle(
-                    color: AppColors.textPrimaryDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            Slider(
-              value: volume,
-              onChanged: (v) => onSetVolume(v),
-              activeColor: AppColors.playerProgress,
-              inactiveColor: AppColors.playerProgressBackground,
-            ),
-          ],
-        ),
       ),
     );
   }

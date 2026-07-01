@@ -1,11 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../domain/entities/song.dart';
 import '../../domain/repositories/audio_player_service.dart';
 import '../../../history/domain/repositories/history_repository.dart';
+
+const _keyVolume = 'player_volume';
+const _keySpeed = 'player_speed';
+const _keyLoopMode = 'player_loop_mode';
+const _keyShuffle = 'player_shuffle';
+const _keyLastSong = 'player_last_song';
+const _keyLastPosition = 'player_last_position';
+const _keyLastQueue = 'player_last_queue';
 
 class MusicPlayerState {
   final bool isPlaying;
@@ -105,9 +116,13 @@ class MusicPlayerState {
 class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   final AudioPlayerService _service;
   final List<StreamSubscription> _subscriptions = [];
+  Timer? _persistTimer;
 
   PlayerNotifier(this._service) : super(const MusicPlayerState()) {
+    _loadPersistedSettings();
     _initStreams();
+    _startPeriodicPersist();
+    _restorePlaybackState();
   }
 
   void _initStreams() {
@@ -166,6 +181,11 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
           updatedSong = state.songs[newIndex];
         }
 
+        // Persist when the song changes
+        if (updatedSong?.id != state.currentSong?.id) {
+          _persistPlaybackState();
+        }
+
         state = state.copyWith(
           currentIndex: newIndex,
           queueLength: newQueueLength,
@@ -173,6 +193,105 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
         );
       }),
     ]);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Persistence helpers
+  // ---------------------------------------------------------------------------
+
+  void _loadPersistedSettings() {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final volume = prefs.getDouble(_keyVolume) ?? 1.0;
+      final speed = prefs.getDouble(_keySpeed) ?? 1.0;
+      final loopModeIndex = prefs.getInt(_keyLoopMode) ?? 0;
+      final shuffle = prefs.getBool(_keyShuffle) ?? false;
+
+      state = state.copyWith(
+        volume: volume,
+        speed: speed,
+        loopMode: LoopMode.values[loopModeIndex.clamp(0, LoopMode.values.length - 1)],
+        shuffleModeEnabled: shuffle,
+      );
+
+      _service.setVolume(volume);
+      _service.setSpeed(speed);
+      _service.setLoopMode(LoopMode.values[loopModeIndex.clamp(0, LoopMode.values.length - 1)]);
+      _service.setShuffleModeEnabled(shuffle);
+    } catch (_) {}
+  }
+
+  void _saveAllSettings() {
+    try {
+      final prefs = sl<SharedPreferences>();
+      prefs.setDouble(_keyVolume, state.volume);
+      prefs.setDouble(_keySpeed, state.speed);
+      prefs.setInt(_keyLoopMode, state.loopMode.index);
+      prefs.setBool(_keyShuffle, state.shuffleModeEnabled);
+    } catch (_) {}
+  }
+
+  void _persistPlaybackState() {
+    if (state.currentSong == null) return;
+    try {
+      final prefs = sl<SharedPreferences>();
+      prefs.setString(_keyLastSong, jsonEncode(state.currentSong!.toJson()));
+      prefs.setInt(_keyLastPosition, state.position.inMilliseconds);
+      final queueJson = state.songs.map((s) => s.toJson()).toList();
+      prefs.setString(_keyLastQueue, jsonEncode(queueJson));
+    } catch (_) {}
+  }
+
+  void _clearPlaybackState() {
+    try {
+      final prefs = sl<SharedPreferences>();
+      prefs.remove(_keyLastSong);
+      prefs.remove(_keyLastPosition);
+      prefs.remove(_keyLastQueue);
+    } catch (_) {}
+  }
+
+  void _startPeriodicPersist() {
+    _persistTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _persistPlaybackState();
+    });
+  }
+
+  void _restorePlaybackState() {
+    try {
+      final prefs = sl<SharedPreferences>();
+      final lastSongJson = prefs.getString(_keyLastSong);
+      if (lastSongJson == null) return;
+
+      final lastSong =
+          Song.fromJson(jsonDecode(lastSongJson) as Map<String, dynamic>);
+      final lastPosition = prefs.getInt(_keyLastPosition) ?? 0;
+
+      final file = File(lastSong.filePath);
+      if (!file.existsSync()) return;
+
+      List<Song> queue;
+      final queueJson = prefs.getString(_keyLastQueue);
+      if (queueJson != null) {
+        final list = jsonDecode(queueJson) as List;
+        queue = list
+            .map((e) => Song.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } else {
+        queue = [lastSong];
+      }
+
+      final index = queue.indexWhere((s) => s.id == lastSong.id);
+      if (index < 0) return;
+
+      // Load queue, seek to position, but don't auto-play
+      playQueue(
+        queue,
+        startIndex: index,
+        autoPlay: false,
+        initialPosition: Duration(milliseconds: lastPosition),
+      );
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------------------
@@ -189,8 +308,13 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   // Queue / playlist playback
   // ---------------------------------------------------------------------------
 
-  /// Loads a list of songs as a queue and starts playing from [startIndex].
-  Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
+  /// Loads a list of songs as a queue and optionally starts playing from [startIndex].
+  Future<void> playQueue(
+    List<Song> songs, {
+    int startIndex = 0,
+    bool autoPlay = true,
+    Duration? initialPosition,
+  }) async {
     if (songs.isEmpty) return;
 
     final children = songs
@@ -216,7 +340,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
       currentSong: songs[startIndex],
       songs: songs,
       isCompleted: false,
-      position: Duration.zero,
+      position: initialPosition ?? Duration.zero,
       queueLength: songs.length,
       currentIndex: startIndex,
       errorMessage: null,
@@ -225,9 +349,22 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
     try {
       await _service.setAudioSource(concatenated);
       await _service.skipToQueueItem(startIndex);
-      await _service.play();
+
+      // Re-apply persisted settings (important after reset/new player)
+      await _service.setVolume(state.volume);
+      await _service.setSpeed(state.speed);
+      await _service.setLoopMode(state.loopMode);
+      await _service.setShuffleModeEnabled(state.shuffleModeEnabled);
+
+      if (initialPosition != null && initialPosition != Duration.zero) {
+        await _service.seek(initialPosition);
+      }
+
+      if (autoPlay) {
+        await _service.play();
+      }
     } catch (e) {
-      if (startIndex < songs.length - 1) {
+      if (autoPlay && startIndex < songs.length - 1) {
         await playQueue(songs, startIndex: startIndex + 1);
       } else {
         state = state.copyWith(errorMessage: 'Playback failed: $e');
@@ -250,6 +387,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   Future<void> pause() async {
     try {
       await _service.pause();
+      _persistPlaybackState();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -266,6 +404,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
   Future<void> stop() async {
     try {
       await _service.stop();
+      _clearPlaybackState();
       state = const MusicPlayerState();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
@@ -367,6 +506,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
     try {
       await _service.setVolume(volume);
       state = state.copyWith(volume: volume);
+      _saveAllSettings();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -376,6 +516,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
     try {
       await _service.setSpeed(speed);
       state = state.copyWith(speed: speed);
+      _saveAllSettings();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -389,6 +530,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
     try {
       await _service.setLoopMode(mode);
       state = state.copyWith(loopMode: mode);
+      _saveAllSettings();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -408,6 +550,7 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
       final next = !state.shuffleModeEnabled;
       await _service.setShuffleModeEnabled(next);
       state = state.copyWith(shuffleModeEnabled: next);
+      _saveAllSettings();
     } catch (e) {
       state = state.copyWith(errorMessage: e.toString());
     }
@@ -547,6 +690,8 @@ class PlayerNotifier extends StateNotifier<MusicPlayerState> {
 
   @override
   void dispose() {
+    _persistPlaybackState();
+    _persistTimer?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
